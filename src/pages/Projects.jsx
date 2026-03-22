@@ -1,11 +1,13 @@
-import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive, Package, UploadCloud, File, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
-import { db } from '../firebase';
+import { db, storage } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, where, writeBatch, limit, getDocs } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import UniversalTimeline from '../components/UniversalTimeline';
 
 // Fix for default marker icons in React Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -46,8 +48,18 @@ const Projects = () => {
     const [closingProject, setClosingProject] = useState(null);
     const activeProject = selectedProject || closingProject;
 
+    const [isUploadingPack, setIsUploadingPack] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const packInputRef = useRef(null);
+
     const [editNotes, setEditNotes] = useState('');
     const [editStatus, setEditStatus] = useState('');
+    const [editSituation, setEditSituation] = useState('');
+    const [scopingChecklist, setScopingChecklist] = useState({
+        visited: false,
+        specsGathered: false,
+        detailsSent: false,
+    });
 
     // Related data for active project
     const [relatedInvoices, setRelatedInvoices] = useState([]);
@@ -108,6 +120,8 @@ const Projects = () => {
                 setSelectedProject(project);
                 setEditNotes(project.notes || '');
                 setEditStatus(project.status || 'New');
+                setEditSituation(project.situation || '');
+                setScopingChecklist(project.scopingChecklist || { visited: false, specsGathered: false, detailsSent: false });
                 fetchRelatedData(id);
             }
         } else {
@@ -212,7 +226,9 @@ const Projects = () => {
             const projectRef = doc(db, 'projects', selectedProject.id);
             await updateDoc(projectRef, {
                 notes: editNotes,
-                status: editStatus
+                status: editStatus,
+                situation: editSituation,
+                scopingChecklist: scopingChecklist
             });
             closeProject();
         } catch (error) {
@@ -291,7 +307,7 @@ const Projects = () => {
         setSyncReport(null);
         setShowSyncModal(false);
         try {
-            const response = await fetch('https://europe-west2-benchmark-intelligence-a5b7c.cloudfunctions.net/scraper', {
+            const response = await fetch('https://europe-west2-benchmark-intel-3ea4a.cloudfunctions.net/scraper', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -313,6 +329,70 @@ const Projects = () => {
             setSyncStatus('error');
         } finally {
             setSyncing(false);
+        }
+    };
+
+    const handleUploadProjectPack = async (e) => {
+        const file = e.target.files[0];
+        if (!file || !activeProject) return;
+
+        setIsUploadingPack(true);
+        setUploadProgress(0);
+
+        try {
+            const timestamp = Date.now();
+            const storagePath = `projects/${activeProject.id}/finished_pack/${timestamp}_${file.name}`;
+            const storageRef = ref(storage, storagePath);
+            const uploadTask = uploadBytesResumable(storageRef, file);
+
+            uploadTask.on('state_changed', 
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    setUploadProgress(progress);
+                }, 
+                (error) => {
+                    console.error("Upload error:", error);
+                    alert("Upload failed.");
+                    setIsUploadingPack(false);
+                }, 
+                async () => {
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    const packData = {
+                        url: downloadURL,
+                        name: file.name,
+                        uploadedAt: new Date().toISOString(),
+                        fullPath: storagePath
+                    };
+
+                    await updateDoc(doc(db, 'projects', activeProject.id), {
+                        finishedProjectPack: packData
+                    });
+
+                    setIsUploadingPack(false);
+                    setUploadProgress(0);
+                    if (packInputRef.current) packInputRef.current.value = '';
+                }
+            );
+        } catch (error) {
+            console.error("Error setting up upload:", error);
+            setIsUploadingPack(false);
+        }
+    };
+
+    const handleDeleteProjectPack = async (e) => {
+        e.stopPropagation();
+        if (!activeProject?.finishedProjectPack) return;
+        if (!window.confirm("Are you sure you want to delete the finished project pack?")) return;
+
+        try {
+            const packRef = ref(storage, activeProject.finishedProjectPack.fullPath);
+            await deleteObject(packRef);
+            await updateDoc(doc(db, 'projects', activeProject.id), {
+                finishedProjectPack: null
+            });
+        } catch (error) {
+            console.error("Delete error:", error);
+            alert("Failed to delete project pack.");
         }
     };
 
@@ -534,10 +614,13 @@ const Projects = () => {
                                         >
                                             <MapIcon className="h-3.5 w-3.5 text-blue-500" /> View on Map
                                         </button>
-                                        <a href={activeProject.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm">
-                                            Portal <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
-                                        </a>
-                                    </div>
+                                            <a href={activeProject.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm">
+                                                Portal <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
+                                            </a>
+                                            <a href={`#/workspace?id=${activeProject.id}`} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#0f172a] border border-transparent rounded-lg text-white hover:bg-black shadow-sm">
+                                                Open Workspace <ChevronRight className="h-3.5 w-3.5 text-white/70" />
+                                            </a>
+                                        </div>
                                     <div className="md:col-span-3 pb-2 border-b border-gray-200 mb-2">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                                             <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Reference</h3><p className="mt-1 text-sm font-semibold text-gray-900">{activeProject.reference || 'N/A'}</p></div>
@@ -548,6 +631,79 @@ const Projects = () => {
                                     <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Received</h3><p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateReceived ? new Date(activeProject.dateReceived).toLocaleDateString() : 'N/A'}</p></div>
                                     <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Validated</h3><p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateValidated ? new Date(activeProject.dateValidated).toLocaleDateString() : 'N/A'}</p></div>
                                     <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Decided</h3><p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateDecided ? new Date(activeProject.dateDecided).toLocaleDateString() : 'N/A'}</p></div>
+                                </div>
+
+                                <div className="bg-emerald-50/50 p-6 border border-emerald-100 rounded-xl space-y-4">
+                                    <h3 className="text-sm font-semibold text-emerald-900 flex items-center justify-between">
+                                        <span className="flex items-center gap-2"><Package className="h-4 w-4" /> Finished Project Pack</span>
+                                        {!activeProject.finishedProjectPack && !isUploadingPack && (
+                                            <button 
+                                                onClick={() => packInputRef.current?.click()}
+                                                className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5 shadow-sm"
+                                            >
+                                                <UploadCloud className="h-3 w-3" /> Upload Pack
+                                            </button>
+                                        )}
+                                    </h3>
+                                    
+                                    <input 
+                                        type="file" 
+                                        ref={packInputRef} 
+                                        className="hidden" 
+                                        onChange={handleUploadProjectPack} 
+                                    />
+
+                                    {isUploadingPack ? (
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-xs text-emerald-700 font-medium">
+                                                <span>Uploading...</span>
+                                                <span>{Math.round(uploadProgress)}%</span>
+                                            </div>
+                                            <div className="w-full bg-emerald-200 rounded-full h-1.5">
+                                                <div 
+                                                    className="bg-emerald-600 h-1.5 rounded-full transition-all duration-300" 
+                                                    style={{ width: `${uploadProgress}%` }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    ) : activeProject.finishedProjectPack ? (
+                                        <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-emerald-100 shadow-sm">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+                                                    <File className="h-5 w-5 text-emerald-600" />
+                                                </div>
+                                                <div className="overflow-hidden">
+                                                    <p className="text-sm font-bold text-gray-900 truncate" title={activeProject.finishedProjectPack.name}>
+                                                        {activeProject.finishedProjectPack.name}
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">
+                                                        Uploaded {new Date(activeProject.finishedProjectPack.uploadedAt).toLocaleDateString()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <a 
+                                                    href={activeProject.finishedProjectPack.url} 
+                                                    target="_blank" 
+                                                    rel="noopener noreferrer"
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
+                                                >
+                                                    <ExternalLink className="h-3.5 w-3.5" /> Open Pack
+                                                </a>
+                                                <button 
+                                                    onClick={handleDeleteProjectPack}
+                                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                    title="Delete Pack"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4">
+                                            <p className="text-sm text-emerald-700/60 italic">No project pack uploaded yet. This is your final delivery for this homeowner.</p>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="bg-blue-50/50 p-6 border border-blue-100 rounded-xl space-y-4">
@@ -575,6 +731,43 @@ const Projects = () => {
                                             <p className="text-sm text-blue-700/60 italic">No homeowner details captured yet.</p>
                                         </div>
                                     )}
+                                </div>
+
+                                {/* Scoping & Situation CRM Block */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
+                                    <div className="flex flex-col h-full bg-indigo-50/50 rounded-xl border border-indigo-200 p-6 shadow-sm">
+                                        <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2 mb-4">
+                                            <Activity className="h-4 w-4" /> The Situation
+                                        </h4>
+                                        <textarea
+                                            rows={4}
+                                            value={editSituation}
+                                            onChange={(e) => setEditSituation(e.target.value)}
+                                            placeholder="What's the current overarching situation with this homeowner?"
+                                            className="w-full text-sm p-3 rounded-lg border border-indigo-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none resize-none flex-1 bg-white mb-4"
+                                        />
+                                        <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2 mb-3 mt-2">
+                                            <ClipboardList className="h-4 w-4" /> Scoping Checklist
+                                        </h4>
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-2 text-sm text-indigo-900 font-medium">
+                                                <input type="checkbox" checked={scopingChecklist.visited} onChange={(e) => setScopingChecklist(prev => ({ ...prev, visited: e.target.checked }))} className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4" />
+                                                House Visited
+                                            </label>
+                                            <label className="flex items-center gap-2 text-sm text-indigo-900 font-medium">
+                                                <input type="checkbox" checked={scopingChecklist.specsGathered} onChange={(e) => setScopingChecklist(prev => ({ ...prev, specsGathered: e.target.checked }))} className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4" />
+                                                Specs Gathered
+                                            </label>
+                                            <label className="flex items-center gap-2 text-sm text-indigo-900 font-medium">
+                                                <input type="checkbox" checked={scopingChecklist.detailsSent} onChange={(e) => setScopingChecklist(prev => ({ ...prev, detailsSent: e.target.checked }))} className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4" />
+                                                Details Sent to Network
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="h-[400px]">
+                                        <UniversalTimeline projectId={activeProject.id} type="Homeowner Sync" />
+                                    </div>
                                 </div>
 
                                 <div className="space-y-6">

@@ -3,6 +3,9 @@
         "rules": "firestore.rules",
         "database": "benchmark-db"
     },
+    "storage": {
+        "rules": "storage.rules"
+    },
     "functions": [
         {
             "source": "functions",
