@@ -1,6 +1,6 @@
-# Benchmark Intelligence
+# Benchmark Intel
 
-Benchmark Intelligence is a modern platform to identify, capture, and distribute construction leads sourced automatically from the City of York Planning Portal.
+Benchmark Intel is a modern platform to identify, capture, and distribute construction leads sourced automatically from the City of York Planning Portal.
 
 This repository contains:
 1. The **React/Vite Frontend** (Internal Dashboard & Lead Capture form) located in `/src`.

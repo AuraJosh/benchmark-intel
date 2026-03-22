@@ -31,7 +31,7 @@ const Layout = ({ children }) => {
                     </button>
                     <Link to="/" className="flex items-center gap-2 overflow-hidden">
                         <img src={Logo} alt="Benchmark" className="h-9 w-9 object-contain shrink-0" />
-                        <span className="font-semibold text-[17px] truncate text-[#0f172a]">Benchmark Intelligence</span>
+                        <span className="font-semibold text-[17px] truncate text-[#0f172a]">Benchmark Intel</span>
                     </Link>
                 </div>
                 <div className="p-4 md:p-8 flex-1 overflow-hidden flex flex-col">

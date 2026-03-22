@@ -171,7 +171,7 @@ const Contracts = () => {
             
             <div style="margin-bottom: 40px; border-bottom: 3px solid #0f172a; padding-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
                 <div>
-                    <h1 style="color: #0f172a; margin: 0; font-size: 28px;">Benchmark Intelligence</h1>
+                    <h1 style="color: #0f172a; margin: 0; font-size: 28px;">Benchmark Intel</h1>
                     <p style="color: #64748b; margin: 5px 0 0 0; font-weight: bold; text-transform: uppercase; font-size: 10px; tracking-widest: 1px;">Official Contract Document</p>
                 </div>
                 <div style="text-align: right;">
@@ -315,7 +315,7 @@ const Contracts = () => {
                 // Footer
                 pdf.setFontSize(8);
                 pdf.setTextColor(203, 213, 225);
-                const footerText = `Document Reference: BRA-${agreement.id.substring(0, 8).toUpperCase()} | Benchmark Intelligence Audit Receipt`;
+                const footerText = `Document Reference: BRA-${agreement.id.substring(0, 8).toUpperCase()} | Benchmark Intel Audit Receipt`;
                 pdf.text(footerText, pageWidth / 2, pageHeight - 0.4, { align: 'center' });
 
             }).then(() => {

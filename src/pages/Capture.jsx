@@ -128,7 +128,7 @@ const Capture = () => {
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0f172a] text-white">
                     <Network className="h-6 w-6" />
                 </div>
-                <span className="text-xl font-semibold tracking-tight text-[#0f172a]">Benchmark Intelligence</span>
+                <span className="text-xl font-semibold tracking-tight text-[#0f172a]">Benchmark Intel</span>
             </div>
 
             <div className="w-full max-w-md rounded-xl border border-[#e2e8f0] bg-white p-8 shadow-sm">
@@ -238,7 +238,7 @@ const Capture = () => {
                         </div>
                         <div className="ml-3 text-sm">
                             <label htmlFor="consent" className="font-medium text-gray-700 cursor-pointer">
-                                I consent to being contacted by Benchmark Intelligence's vetted network of builders for quotes.
+                                I consent to being contacted by Benchmark Intel's vetted network of builders for quotes.
                             </label>
                         </div>
                     </div>

@@ -29,7 +29,7 @@ const Login = () => {
                     <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#0f172a] text-white">
                         <Network className="h-8 w-8" />
                     </div>
-                    <h1 className="text-2xl font-semibold text-[#0f172a]">Benchmark Intelligence</h1>
+                    <h1 className="text-2xl font-semibold text-[#0f172a]">Benchmark Intel</h1>
                     <p className="mt-2 text-sm text-gray-500">Internal Staff Dashboard</p>
                 </div>
 

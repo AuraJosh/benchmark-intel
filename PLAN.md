@@ -1,8 +1,8 @@
-Benchmark Intelligence - System Architecture & Implementation Plan
+Benchmark Intel - System Architecture & Implementation Plan
 
 1. Executive Summary
 
-Benchmark Intelligence requires a three-part, seamlessly integrated platform to identify, capture, and distribute construction leads in York.
+Benchmark Intel requires a three-part, seamlessly integrated platform to identify, capture, and distribute construction leads in York.
 
 Internal Dashboard & Scraper: An automated system to monitor the York planning portal for "extension" approvals, bypassing session-cookie limitations, alongside a CRM-style dashboard for staff to manage projects.
 
@@ -78,13 +78,13 @@ Part 2: Homeowner Lead Capture
 
 Access Method: To ensure seamless data-linking, the URL accessed via iPad or QR code will contain the project ID: benchmarkintel.com/capture?id=T99ADNSJIQL00.
 
-UI/UX: A highly polished, mobile-first form with large touch targets. Branding should instil trust (Benchmark Intelligence logo, clean typography).
+UI/UX: A highly polished, mobile-first form with large touch targets. Branding should instil trust (Benchmark Intel logo, clean typography).
 
 Functionality: * Reads the id from the URL to display the address at the top (e.g., "Regarding your approved extension at 123 Fake Street").
 
 Collects: Name, Phone, Email.
 
-Explicit checkbox for: "I consent to being contacted by Benchmark Intelligence's vetted network of builders for quotes."
+Explicit checkbox for: "I consent to being contacted by Benchmark Intel's vetted network of builders for quotes."
 
 Database Update: On submit, creates a document in the homeowners collection and updates the parent project status to "Contacted/Lead Captured".
 
@@ -206,4 +206,4 @@ Phase 7: Legally Binding Contract Signing System
 
 5. PDF Generation & Archive: Add client-side PDF generation to download and distribute executed agreements.
 
-📍 CHECKPOINT 6: Issue a test contract to a builder. Copy the secure link. Sign the contract as the builder. Verify the signature is stored and a professional PDF can be generated.
+📍 CHECKPOINT 6: Issue a test contract to a builder. Copy the secure link. Sign the contract as the builder. Verify the signature is stored and a professional PDF can be generated.

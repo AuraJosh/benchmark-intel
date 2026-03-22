@@ -89,7 +89,7 @@ export async function finalizeContract({ agreementId, signatureData, ip, userAge
             <body>
                 <div class="header">
                     <div>
-                        <h1>Benchmark Intelligence</h1>
+                        <h1>Benchmark Intel</h1>
                         <p style="margin: 5px 0 0 0; font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Finalized Legal Agreement</p>
                     </div>
                     <div class="meta">
@@ -161,7 +161,7 @@ export async function finalizeContract({ agreementId, signatureData, ip, userAge
                         <p class="legal-note">
                             This document is a legally binding electronic record as defined by the Electronics Communications Act 2000 (UK). 
                             Any modification to this document after the recorded timestamp voids the digital seal integrity. 
-                            Benchmark Intelligence maintains the primary immutable audit record for this transaction.
+                            Benchmark Intel maintains the primary immutable audit record for this transaction.
                         </p>
                     </div>
                 </div>
@@ -246,10 +246,10 @@ async function sendReceiptEmail(to, name, pdfBuffer, refId) {
     });
 
     const mailOptions = {
-        from: '"Benchmark Intelligence" <noreply@benchmarkintelligence.co.uk>',
+        from: '"Benchmark Intel" <noreply@benchmarkintelligence.co.uk>',
         to: to,
         subject: `Finalized Contract: ${refId}`,
-        text: `Dear ${name},\n\nPlease find attached the finalized, signed copy of your contract (Ref: ${refId}).\n\nThis document has been tamper-sealed and stored in our secure audit trail.\n\nBest regards,\nBenchmark Intelligence Team`,
+        text: `Dear ${name},\n\nPlease find attached the finalized, signed copy of your contract (Ref: ${refId}).\n\nThis document has been tamper-sealed and stored in our secure audit trail.\n\nBest regards,\nBenchmark Intel Team`,
         attachments: [
             {
                 filename: `Contract_${refId}.pdf`,
