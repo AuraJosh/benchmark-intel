@@ -49,7 +49,7 @@ const Invoices = () => {
             // Confetti explosion
             const duration = 3 * 1000;
             const animationEnd = Date.now() + duration;
-            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 1000 };
 
             const randomInRange = (min, max) => Math.random() * (max - min) + min;
 
@@ -232,6 +232,17 @@ const Invoices = () => {
                 payments: updatedPayments,
                 status: overallStatus
             });
+
+            // Trigger installment confetti if this specific one was just paid
+            if (newStatus === 'Paid') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    zIndex: 1001,
+                    colors: ['#10b981', '#3b82f6', '#fbbf24']
+                });
+            }
 
             // Refresh selected invoice view
             setSelectedInvoice({ ...selectedInvoice, payments: updatedPayments, status: overallStatus });
