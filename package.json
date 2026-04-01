@@ -15,6 +15,7 @@
   "dependencies": {
     "@firebase/vertexai": "^1.2.4",
     "@firebase/vertexai-preview": "^0.0.4",
+    "canvas-confetti": "^1.9.4",
     "firebase": "^12.10.0",
     "html2pdf.js": "^0.14.0",
     "jszip": "^3.10.1",
