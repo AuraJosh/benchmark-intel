@@ -10,7 +10,7 @@ import {
     Search, Phone, Mail, MessageSquare, X, Plus,
     ExternalLink, ChevronRight, Home, Building2, Clock,
     StickyNote, Send, Footprints, AlarmClockCheck, Loader2,
-    Pencil, Trash2, Mic, Play, Volume2,
+    Pencil, Trash2, Mic, Play, Volume2, FileText,
 } from 'lucide-react';
 
 /* ─── theme tokens ──────────────────────────────────────────────────────────── */
