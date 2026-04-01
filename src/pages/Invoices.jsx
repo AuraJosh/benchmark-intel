@@ -447,13 +447,21 @@ const Invoices = () => {
                                 <div className="space-y-4">
                                     <h3 className="font-bold text-gray-900 flex items-center gap-2"><Calendar className="h-4 w-4" /> Payment Plan</h3>
 
-                                    {Object.entries(selectedInvoice.payments).map(([id, p]) => {
-                                        const interest = calculateInterest(p, selectedInvoice.boeBaseRate);
-                                        const totalDue = p.amount + (p.additionalCosts || 0) + interest;
-                                        const remaining = totalDue - p.amountPaid;
+                                    {Object.entries(selectedInvoice.payments)
+                                        .sort(([idA, pA], [idB, pB]) => {
+                                            // Paid goes to bottom
+                                            if (pA.status === 'Paid' && pB.status !== 'Paid') return 1;
+                                            if (pA.status !== 'Paid' && pB.status === 'Paid') return -1;
+                                            // Otherwise follow p1, p2, p3 order
+                                            return idA.localeCompare(idB);
+                                        })
+                                        .map(([id, p]) => {
+                                            const interest = calculateInterest(p, selectedInvoice.boeBaseRate);
+                                            const totalDue = p.amount + (p.additionalCosts || 0) + interest;
+                                            const remaining = totalDue - p.amountPaid;
 
-                                        return (
-                                            <div key={id} className={`p-6 rounded-2xl border ${p.status === 'Paid' ? 'bg-green-50/30 border-green-100' : interest > 0 ? 'bg-red-50/30 border-red-200' : 'bg-white border-gray-200 shadow-sm'}`}>
+                                            return (
+                                                <div key={id} className={`p-6 rounded-2xl border ${p.status === 'Paid' ? 'bg-green-50 border-green-200' : interest > 0 ? 'bg-red-50/30 border-red-200' : 'bg-white border-gray-200 shadow-sm'}`}>
                                                 <div className="flex justify-between items-start mb-4">
                                                     <div>
                                                         <h4 className="font-bold text-gray-900 uppercase text-xs tracking-wider">

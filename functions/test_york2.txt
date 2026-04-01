@@ -1,0 +1,73 @@
+Navigating to https://planningaccess.york.gov.uk/online-applications/applicationDetails.do?activeTab=contacts&keyVal=T961M7SJIOW00
+Extracted HTML from tabcontainer:
+
+        
+
+        
+        
+            
+            
+            
+
+            
+                
+                    
+                
+            
+
+            
+                
+                    
+                
+                
+                    
+                
+                
+            
+
+
+            
+            <div class="agents">
+<h3>Agent</h3>
+<p>Mr Mohamed Hussein</p>
+<table class="agents" summary="Agent contact details">
+<tbody><tr class="row0">
+<th scope="row">EMAIL</th>
+<td>mhhussein@hotmail.co.uk</td>
+</tr>
+<tr class="row0">
+<th scope="row">Phone</th>
+<td>07534027230</td>
+</tr>
+</tbody></table>
+</div><div class="councillors">
+<h3>Ward Councillors</h3>
+<p>Councillor Conrad Whitcroft</p>
+<table class="councillors" summary="Councillor contact details">
+<tbody><tr class="row0">
+<th scope="row">Address</th>
+<td>C/o Democratic Services, City Of York Council, West Offices, York, YO1 6GA</td>
+</tr>
+<tr class="row0">
+<th scope="row">EMAIL</th>
+<td>Cllr.cWhitcroft@york.gov.uk</td>
+</tr>
+</tbody></table>
+<p>Councillor Sarah Wilson</p>
+<table class="councillors" summary="Councillor contact details">
+<tbody><tr class="row0">
+<th scope="row">Address</th>
+<td>C/o Democratic Services, West Offices, Station Rise, York, YO1 6GA</td>
+</tr>
+<tr class="row0">
+<th scope="row">EMAIL</th>
+<td>Cllr.sWilson@york.gov.uk</td>
+</tr>
+</tbody></table>
+</div>
+
+
+        
+
+        
+    

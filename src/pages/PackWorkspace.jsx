@@ -1,20 +1,27 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db, storage, vertexAI } from '../firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
+import { doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable, listAll } from 'firebase/storage';
 import { getGenerativeModel } from "@firebase/vertexai";
 import { UploadCloud, File as FileIcon, Eye, Bot, RefreshCcw, Loader2, ArrowLeft, Download, CheckCircle2, Trash2, Copy, Ban, Maximize2, X, Link, ExternalLink, Package } from 'lucide-react';
 import JSZip from 'jszip';
+import * as pdfjsLib from 'pdfjs-dist';
 import PDFPreviewModal from '../components/PDFPreviewModal';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { generateCustomProjectId } from '../utils/projectIds';
 
-const PackWorkspace = () => {
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
     const [searchParams] = useSearchParams();
-    const projectId = searchParams.get('id');
+    const navigate = useNavigate();
+    const projectId = propId || searchParams.get('id');
+    const handleClose = propOnClose || (() => navigate(-1));
 
     const [project, setProject] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [confirmation, setConfirmation] = useState({ isOpen: false, title: '', message: '', confirmText: '', type: 'warning', onConfirm: null });
     const [projectFiles, setProjectFiles] = useState([]);
     
     // UI states
@@ -23,6 +30,9 @@ const PackWorkspace = () => {
     const [isUploading, setIsUploading] = useState(false);
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
     const [isSummaryMaximized, setIsSummaryMaximized] = useState(false);
+    const [isCopyingFigma, setIsCopyingFigma] = useState(false);
+    const [isCleaningFigma, setIsCleaningFigma] = useState(false);
+    const [hasCopiedFigma, setHasCopiedFigma] = useState(false);
     
     // Finished Pack state
     const [isUploadingPack, setIsUploadingPack] = useState(false);
@@ -67,40 +77,35 @@ const PackWorkspace = () => {
     }, [projectId]);
 
     const handleStartWorkspace = async () => {
-        if (!window.confirm("Initialize auto-scrape from the York Portal? This will fetch all related documents.")) return;
-        setIsScraping(true);
-        try {
-            const response = await fetch('https://europe-west2-benchmark-intel-3ea4a.cloudfunctions.net/initializeWorkspace', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    projectId: project.id,
-                    reference: project.reference
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Initialization failed");
+        setConfirmation({
+            isOpen: true,
+            title: 'Auto-Scrape York Portal',
+            message: 'Initialize auto-scrape from the York Portal? This will fetch all related documents and update active plans.',
+            confirmText: 'Start Scrape',
+            type: 'info',
+            onConfirm: async () => {
+                setConfirmation({ ...confirmation, isOpen: false });
+                setIsScraping(true);
+                try {
+                    const response = await fetch('https://europe-west2-benchmark-intel-3ea4a.cloudfunctions.net/initializeWorkspace', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ projectId, address: project.address, reference: project.reference })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        alert(`Synchronization started! Scraped ${data.count || 0} documents successfully.`);
+                    } else {
+                        throw new Error(data.error || "Initialization failed");
+                    }
+                } catch (error) {
+                    console.error("Workspace init error:", error);
+                    alert("Scraper failed: " + error.message);
+                } finally {
+                    setIsScraping(false);
+                }
             }
-
-            const data = await response.json();
-            alert(`Synchronization started! Scraped ${data.count || 0} documents successfully.`);
-            
-            // Refresh local state to show new files
-            const docRef = doc(db, 'projects', projectId);
-            const snapshot = await getDoc(docRef);
-            if (snapshot.exists()) {
-                const freshData = snapshot.data();
-                setProjectFiles(freshData.projectFiles || []);
-                setProject(prev => ({ ...prev, ...freshData }));
-            }
-        } catch (error) {
-            console.error("Auto-scrape failed:", error);
-            alert("Scraper failed: " + error.message);
-        } finally {
-            setIsScraping(false);
-        }
+        });
     };
 
     const handleUploadFiles = async (files) => {
@@ -189,36 +194,55 @@ const PackWorkspace = () => {
         }
     };
 
-    const handleDeleteProjectPack = async () => {
+    const handleDeleteProjectPack = async (e) => {
+        e.stopPropagation();
         if (!project?.finishedProjectPack) return;
-        if (!window.confirm("Are you sure you want to delete the finished project pack?")) return;
-
-        try {
-            const packRef = ref(storage, project.finishedProjectPack.fullPath);
-            await deleteObject(packRef);
-            await updateDoc(doc(db, 'projects', projectId), {
-                finishedProjectPack: null
-            });
-            setProject(prev => ({ ...prev, finishedProjectPack: null }));
-        } catch (error) {
-            console.error("Delete error:", error);
-            alert("Failed to delete project pack.");
-        }
+        
+        setConfirmation({
+            isOpen: true,
+            title: 'Delete Project Pack',
+            message: 'Are you sure you want to delete the finished project pack? This will remove the document from Firebase Storage.',
+            confirmText: 'Delete Pack',
+            type: 'danger',
+            onConfirm: async () => {
+                try {
+                    const packRef = ref(storage, project.finishedProjectPack.fullPath);
+                    await deleteObject(packRef);
+                    await updateDoc(doc(db, 'projects', projectId), {
+                        finishedProjectPack: null
+                    });
+                    setProject(prev => ({ ...prev, finishedProjectPack: null }));
+                    setConfirmation({ ...confirmation, isOpen: false });
+                } catch (error) {
+                    console.error("Delete error:", error);
+                    alert("Failed to delete project pack.");
+                }
+            }
+        });
     };
 
     const handleDeleteFile = async (fileObj) => {
-        if (!window.confirm(`Delete ${fileObj.name} from Firebase Storage globally?`)) return;
-        try {
-            const fileRef = ref(storage, fileObj.fullPath);
-            await deleteObject(fileRef);
-            
-            const remaining = projectFiles.filter(f => f.fullPath !== fileObj.fullPath);
-            await updateDoc(doc(db, 'projects', projectId), { projectFiles: remaining });
-            setProjectFiles(remaining);
-        } catch (error) {
-            console.error("Error deleting file:", error);
-            alert("Failed to delete file.");
-        }
+        setConfirmation({
+            isOpen: true,
+            title: 'Delete File',
+            message: `Are you sure you want to delete ${fileObj.name}? This will permanently remove it from storage.`,
+            confirmText: 'Remove File',
+            type: 'danger',
+            onConfirm: async () => {
+                try {
+                    const fileRef = ref(storage, fileObj.fullPath);
+                    await deleteObject(fileRef);
+                    await updateDoc(doc(db, 'projects', projectId), {
+                        projectFiles: arrayRemove(fileObj)
+                    });
+                    setProjectFiles(prev => prev.filter(f => f.fullPath !== fileObj.fullPath));
+                    setConfirmation({ ...confirmation, isOpen: false });
+                } catch (error) {
+                    console.error("Delete error:", error);
+                    alert("Failed to delete file.");
+                }
+            }
+        });
     };
 
     // Drag events
@@ -239,7 +263,7 @@ const PackWorkspace = () => {
             }
 
             const validFiles = (projectFiles || []).filter(f => {
-                const isDoc = f && f.fullPath && typeof f.fullPath === 'string';
+                const isDoc = f && (f.fullPath || f.url);
                 if (!isDoc) return false;
                 if (f.isSuperseded) return false; // Explicitly excluded by user
                 const lowerName = (f.name || '').toLowerCase();
@@ -285,9 +309,10 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
             
             // 1. Add PDFs for deep text/data extraction (via GS URI)
             topFiles.forEach(file => {
+                const filePath = file.fullPath || decodeURIComponent(file.url.split('/o/')[1].split('?')[0]);
                 parts.push({
                     fileData: {
-                        fileUri: `gs://benchmark-intel-3ea4a.firebasestorage.app/${file.fullPath}`,
+                        fileUri: `gs://benchmark-intel-3ea4a.firebasestorage.app/${filePath}`,
                         mimeType: file.contentType || 'application/pdf'
                     }
                 });
@@ -343,33 +368,39 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
      * Helper to render the first page of a PDF to a PNG DataURL using pdfjsLib
      */
     async function renderFirstPageToDataUrl(url) {
+        let localUrl = null;
         try {
-            const pdfjsLib = await import('pdfjs-dist');
-            pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-            
-            const loadingTask = pdfjsLib.getDocument(url);
+            const burstUrl = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+            const response = await fetch(burstUrl);
+            const blob = await response.blob();
+            localUrl = URL.createObjectURL(blob);
+
+            const loadingTask = pdfjsLib.getDocument({ url: localUrl, disableAutoFetch: true });
             const pdf = await loadingTask.promise;
             const page = await pdf.getPage(1);
             
-            const viewport = page.getViewport({ scale: 2.0 }); // High res for detail
+            const viewport = page.getViewport({ scale: 2.0 }); 
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.height = viewport.height;
             canvas.width = viewport.width;
 
             await page.render({ canvasContext: context, viewport: viewport }).promise;
+            URL.revokeObjectURL(localUrl);
             return canvas.toDataURL('image/png');
         } catch (error) {
             console.error("PDF Rendering Error:", error);
+            if (localUrl) URL.revokeObjectURL(localUrl);
             return null;
         }
     }
 
     const handleToggleSuperseded = async (fileObj) => {
         try {
-            const updated = projectFiles.map(f => 
-                f.fullPath === fileObj.fullPath ? { ...f, isSuperseded: !f.isSuperseded } : f
-            );
+            const updated = projectFiles.map(f => {
+                const isMatch = (f.fullPath && f.fullPath === fileObj.fullPath) || (f.url && f.url === fileObj.url);
+                return isMatch ? { ...f, isSuperseded: !f.isSuperseded } : f;
+            });
             await updateDoc(doc(db, 'projects', projectId), { projectFiles: updated });
             setProjectFiles(updated);
         } catch (error) {
@@ -383,15 +414,269 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
         alert("Summary copied to clipboard!");
     };
 
+    const generateFigmaPayload = async () => {
+        let aiData = {};
+        if (project.aiDescription) {
+            try {
+                const cleaned = project.aiDescription.replace(/```(json)?|```/g, '').trim();
+                aiData = JSON.parse(cleaned);
+            } catch (e) {
+                console.warn("Could not parse aiDescription as JSON", e);
+                aiData = { projectDescription: project.aiDescription };
+            }
+        }
+
+        const formatDate = (dateString) => {
+            if (!dateString) return "";
+            return new Date(dateString).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        };
+
+        const statusStr = `${project.applicationStatus || 'Unknown'}, As of: ${formatDate(project.dateDecided) || 'N/A'}`;
+
+        const resolveImage = async (file) => {
+            if (!file || !file.url) return { png: '', link: '' };
+            const isPdf = file.contentType === 'application/pdf' || (file.name && file.name.toLowerCase().endsWith('.pdf'));
+            if (isPdf) {
+                try {
+                    const pngData = await renderFirstPageToDataUrl(file.url);
+                    if (!pngData) return { png: '', link: file.url };
+
+                    const res = await fetch(pngData);
+                    const blob = await res.blob();
+                    
+                    const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9]/g, '_') : 'unnamed';
+                    const tempRef = ref(storage, `projects/${projectId}/figma-temp/${Date.now()}_${safeName}.png`);
+                    
+                    await uploadBytes(tempRef, blob, { contentType: 'image/png' });
+                    const publicUrl = await getDownloadURL(tempRef);
+                    
+                    return { png: publicUrl, link: file.url };
+                } catch (e) {
+                    console.error('Figma Temp Upload Error:', e);
+                    return { png: '', link: file.url };
+                }
+            }
+            return { png: file.url, link: file.url };
+        };
+
+
+        let elevFile = null;
+        let planFile = null;
+        let locationFile = null;
+
+        const validFiles = projectFiles.filter(f => !f.isSuperseded && f.url);
+
+        // 1. Try to match using the exact Portal Descriptions from the Extension
+        if (project.documentDescriptions && Array.isArray(project.documentDescriptions)) {
+            validFiles.forEach((f, idx) => {
+                const descVal = project.documentDescriptions[idx];
+                let descText = "";
+                if (typeof descVal === 'string') descText = descVal.toLowerCase();
+                else if (descVal && typeof descVal === 'object') {
+                    descText = (descVal.description || descVal.title || descVal.name || "").toLowerCase();
+                }
+
+                if (descText) {
+                    if (!elevFile && descText.includes('elev')) elevFile = f;
+                    if (descText.includes('plan')) {
+                        // Prioritize "proposed" plans over "existing"
+                        if (descText.includes('proposed')) planFile = f;
+                        else if (!planFile) planFile = f;
+                    }
+                    if (!locationFile && (descText.includes('location') || descText.includes('site'))) locationFile = f;
+                }
+            });
+        }
+
+        // 2. Fallback to basic filename search if descriptions missed anything
+        if (!elevFile) elevFile = validFiles.find(f => f.name?.toLowerCase().includes('elev'));
+        if (!planFile) planFile = validFiles.find(f => f.name?.toLowerCase().includes('plan') && f.name?.toLowerCase().includes('proposed')) || validFiles.find(f => f.name?.toLowerCase().includes('plan'));
+        if (!locationFile) locationFile = validFiles.find(f => f.name?.toLowerCase().includes('location') || f.name?.toLowerCase().includes('site'));
+
+        // 3. Last Resort Fallback: Just grab remaining valid files so the fields aren't completely empty
+        const usedUrls = new Set([elevFile?.url, planFile?.url, locationFile?.url].filter(Boolean));
+        const remainingFiles = validFiles.filter(f => !usedUrls.has(f.url));
+        
+        if (!elevFile && remainingFiles.length > 0) elevFile = remainingFiles.shift();
+        if (!planFile && remainingFiles.length > 0) planFile = remainingFiles.shift();
+        if (!locationFile && remainingFiles.length > 0) locationFile = remainingFiles.shift();
+
+        const coverData = await resolveImage(elevFile);
+        const planData = await resolveImage(planFile);
+        const aerialData = await resolveImage(locationFile);
+
+        // All project files become document pages. Superseded ones route to MasterSuperseededPage.
+        // Build a URL → portal description lookup for clean titles
+        const toTitleCase = (str) =>
+            str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+        const descriptionByUrl = {};
+        if (project.documentDescriptions && Array.isArray(project.documentDescriptions)) {
+            // documentDescriptions aligns with ALL projectFiles (not just validFiles)
+            projectFiles.forEach((f, idx) => {
+                const descVal = project.documentDescriptions[idx];
+                let descText = '';
+                if (typeof descVal === 'string') descText = descVal.trim();
+                else if (descVal && typeof descVal === 'object') {
+                    descText = (descVal.description || descVal.title || descVal.name || '').trim();
+                }
+                if (descText && f.url) descriptionByUrl[f.url] = descText;
+            });
+        }
+
+        const getDocTitle = (file) => {
+            // 1. Use portal description if available
+            const desc = file.url && descriptionByUrl[file.url];
+            if (desc) return toTitleCase(desc);
+            // 2. Fallback: clean up the filename
+            const name = (file.name || 'Unnamed Document')
+                .replace(/\.pdf$/i, '')                // remove extension
+                .replace(/^\d{2}_[A-Za-z]{3}_\d{4}_/, '') // remove date prefix
+                .replace(/_/g, ' ')                    // underscores → spaces
+                .trim();
+            return toTitleCase(name);
+        };
+
+        const documentListData = [];
+        for (const file of projectFiles.filter(f => f.url)) {
+            const docData = await resolveImage(file);
+            documentListData.push({
+                docTitle: getDocTitle(file),
+                docLink: docData.link || '',   // URL for hyperlink
+                docPreview: docData.png || '',
+                isSuperseded: !!file.isSuperseded
+            });
+        }
+
+        const payload = {
+            projectId: project.customId || project.id,
+            projectAddress: project.address || '',
+            projectDescription: aiData.projectDescription || '',
+            floors: aiData.floors || [], // Now a dynamic array
+            extras: aiData.extras || '',
+            planningStatus: statusStr,
+            homeOwnerName: project.homeownerName || '',
+            homeOwnerPhone: project.homeownerPhone || '',
+            homeOwnerEmail: project.homeownerEmail || '',
+            
+            imageCover: coverData.png || '',
+            coverLink: coverData.link || '',
+            
+            imageProposedPlan: planData.png || '',
+            proposedPlanLink: planData.link || '',
+            
+            imageAerial: aerialData.png || '',
+            aerialLink: aerialData.link || '',
+            
+            documentList: documentListData
+        };
+
+        return JSON.stringify(payload, null, 2);
+    };
+
+    const handleCopyFigmaPayload = async () => {
+        setIsCopyingFigma(true);
+        try {
+            const payload = await generateFigmaPayload();
+            navigator.clipboard.writeText(payload);
+            setHasCopiedFigma(true);
+            alert("Figma JSON generated and copied to clipboard!");
+        } catch (error) {
+            console.error("Payload Generation Error:", error);
+            alert("Failed to build Figma payload.");
+        } finally {
+            setIsCopyingFigma(false);
+        }
+    };
+
+    const handleCleanUpFigmaTemp = async () => {
+        setIsCleaningFigma(true);
+        try {
+            const tempFolderRef = ref(storage, `projects/${projectId}/figma-temp`);
+            const res = await listAll(tempFolderRef);
+            
+            if (res.items.length === 0) {
+                alert("No temp previews found to clean up.");
+                return;
+            }
+            
+            const deletePromises = res.items.map(itemRef => deleteObject(itemRef));
+            await Promise.all(deletePromises);
+            
+            alert(`Successfully cleaned up ${res.items.length} temp preview files!`);
+        } catch (error) {
+            console.error("Cleanup Error:", error);
+            alert("Failed to clean up temp previews. (Folder may already be deleted)");
+        } finally {
+            setIsCleaningFigma(false);
+        }
+    };
+
+    const renderAIDescription = () => {
+        if (!project.aiDescription) return null;
+        try {
+            const cleaned = project.aiDescription.replace(/```(json)?|```/g, '').trim();
+            const aiData = JSON.parse(cleaned);
+            return (
+                <div className="space-y-6">
+                    {aiData.projectDescription && (
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-900 mb-2">Project Description</h4>
+                            <p className="text-gray-700 leading-relaxed text-base">{aiData.projectDescription}</p>
+                        </div>
+                    )}
+                    {aiData.floors && Array.isArray(aiData.floors) && aiData.floors.map((floor, idx) => (
+                        <div key={idx}>
+                            <h4 className="text-sm font-bold text-gray-900 mb-2">{floor.floorLevel || 'Floor'}</h4>
+                            <p className="text-gray-700 leading-relaxed text-base">{floor.floorSummary}</p>
+                        </div>
+                    ))}
+                    {aiData.extras && (
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-900 mb-2">Extras / External Materials</h4>
+                            <p className="text-gray-700 leading-relaxed text-base">{aiData.extras}</p>
+                        </div>
+                    )}
+                </div>
+            );
+        } catch (e) {
+            return <div className="text-gray-800 leading-relaxed text-base space-y-4" dangerouslySetInnerHTML={{ __html: project.aiDescription.replace(/\n/g, '<br />') }} />;
+        }
+    };
+
     if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>;
     if (!project) return <div className="p-8 text-center text-red-500 font-bold">Project Workspace Not Found.</div>;
+
+    const step1Done = projectFiles.length > 0;
+    const step2Done = step1Done && !!project.aiDescription;
+    const step3Done = step2Done && (hasCopiedFigma || !!project.finishedProjectPack);
+    const step4Done = step3Done && !!project.finishedProjectPack;
+
+    const getHighlightStyles = (isCurrent, isDone, isDragging = false) => {
+        if (isDragging) return {};
+        if (isCurrent) return { 
+            boxShadow: '0 0 0 2px #FA8500, 0 0 15px rgba(250,133,0,0.2)',
+            borderColor: '#FA8500'
+        };
+        if (isDone) return { 
+            boxShadow: '0 0 0 2px #10B981',
+            borderColor: '#10B981'
+        };
+        return {};
+    };
+
+    const currentStepText = !step1Done ? "Upload project files" 
+        : !step2Done ? "Generate AI summary" 
+        : !step3Done ? "Copy JSON for Figma payload" 
+        : !step4Done ? "Upload final project pack" 
+        : "Workspace complete!";
 
     return (
         <div className="flex flex-col h-full bg-gray-50 overflow-hidden relative">
             {/* Header */}
             <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4">
-                    <a href="#/projects" className="p-2 -ml-2 rounded-md hover:bg-gray-100 text-gray-500"><ArrowLeft className="h-5 w-5" /></a>
+                    <button onClick={handleClose} className="p-2 -ml-2 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"><ArrowLeft className="h-5 w-5" /></button>
                     <div>
                         <div className="flex items-center gap-3">
                             <h1 className="text-xl font-bold tracking-tight text-[#0f172a]">Project Pack Workspace</h1>
@@ -416,7 +701,10 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                     
                     {/* LEFT PANEL: AI Technical Summary (2/3 width) */}
                     <div className="lg:col-span-2 flex flex-col gap-6 order-2 lg:order-1">
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
+                        <div 
+                            className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[700px] transition-all duration-500"
+                            style={getHighlightStyles(step1Done && !step2Done, step2Done)}
+                        >
                             <div className="bg-[#1e1b4b] border-b border-indigo-900 px-5 py-4 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <Bot className="h-5 w-5 text-indigo-300" />
@@ -443,7 +731,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                             </div>
                             <div className="p-8 flex-1 overflow-y-auto bg-gray-50/30 prose prose-slate prose-sm max-w-none">
                                 {project.aiDescription ? (
-                                    <div className="text-gray-800 leading-relaxed text-base space-y-4" dangerouslySetInnerHTML={{ __html: project.aiDescription.replace(/\n/g, '<br />') }} />
+                                    renderAIDescription()
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-50 space-y-4">
                                         <div className="p-4 bg-gray-100 rounded-full">
@@ -451,7 +739,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                                         </div>
                                         <div>
                                             <p className="text-base font-bold text-gray-900">No Intelligence Generated</p>
-                                            <p className="text-sm max-w-xs mt-1">Ready to analyze local PDFs and snapshots with Gemini 2.5 Pro.</p>
+                                            <p className="text-sm max-w-xs mt-1">Ready to analyze local PDFs and snapshots with Gemini 2.5 Flash.</p>
                                         </div>
                                         <button 
                                             onClick={handleGenerateAI} 
@@ -497,10 +785,26 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                                 {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                                 Refresh Summary
                             </button>
+                            <button 
+                                onClick={handleCopyFigmaPayload} 
+                                disabled={!project.aiDescription || isCopyingFigma} 
+                                className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0f172a] text-white hover:bg-black rounded-lg text-xs font-bold shadow-sm transition-all duration-500 disabled:opacity-50"
+                                style={getHighlightStyles(step2Done && !step3Done, step3Done)}
+                            >
+                                {isCopyingFigma ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+                                {isCopyingFigma ? 'Building Payload...' : 'Copy JSON for Figma'}
+                            </button>
+                            <button onClick={handleCleanUpFigmaTemp} disabled={isCleaningFigma} className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50">
+                                {isCleaningFigma ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                {isCleaningFigma ? 'Cleaning...' : 'Clean Up Temp Previews'}
+                            </button>
                         </div>
 
                         {/* Final Project Pack Section */}
-                        <div className="bg-emerald-50/50 p-4 border border-emerald-100 rounded-xl space-y-3">
+                        <div 
+                            className="bg-emerald-50/50 p-4 border border-emerald-100 rounded-xl space-y-3 transition-all duration-500"
+                            style={getHighlightStyles(step3Done && !step4Done, step4Done)}
+                        >
                             <h3 className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest flex items-center justify-between">
                                 <span className="flex items-center gap-2"><Package className="h-3.5 w-3.5" /> Final Project Pack</span>
                                 {!project.finishedProjectPack && !isUploadingPack && (
@@ -572,8 +876,9 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                         {/* File Uploader (Slim) */}
                         <div 
                             onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
-                            className={`bg-white rounded-xl border border-dashed shadow-sm p-4 flex flex-col items-center justify-center text-center transition-colors min-h-[100px]
+                            className={`bg-white rounded-xl border border-dashed shadow-sm p-4 flex flex-col items-center justify-center text-center transition-all duration-500 min-h-[100px]
                             ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                            style={getHighlightStyles(!step1Done, step1Done, dragActive)}
                         >
                             <input type="file" multiple ref={fileInputRef} onChange={(e) => handleUploadFiles(Array.from(e.target.files))} className="hidden" />
                             {isUploading ? (
@@ -589,7 +894,10 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                         </div>
 
                         {/* File Listing (Standard size) */}
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex-1 flex flex-col">
+                        <div 
+                            className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex-1 flex flex-col transition-all duration-500"
+                            style={getHighlightStyles(!step1Done, step1Done)}
+                        >
                             <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 flex items-center justify-between">
                                 <h3 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">Project Documents</h3>
                                 <span className="bg-gray-200 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{projectFiles.length}</span>
@@ -639,7 +947,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-8 md:p-12 prose prose-slate max-w-none">
-                            <div className="text-lg leading-relaxed text-gray-800 space-y-6" dangerouslySetInnerHTML={{ __html: project.aiDescription?.replace(/\n/g, '<br />') }} />
+                            {renderAIDescription()}
                         </div>
                     </div>
                 </div>
@@ -648,6 +956,31 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
             {previewModalOpen && projectFiles.length > 0 && (
                 <PDFPreviewModal files={projectFiles.filter(f => f.url)} initialIndex={0} onClose={() => setPreviewModalOpen(false)} />
             )}
+
+            {/* Subtle Walkthrough Notification */}
+            <div className="fixed bottom-6 right-6 z-50 pointer-events-none">
+                <div className="bg-[#1e1b4b] text-white shadow-2xl border border-indigo-900/50 rounded-xl px-4 py-3 flex items-center gap-3 w-max animate-in slide-in-from-bottom-5 duration-500">
+                    {!step4Done ? (
+                        <div className="relative flex items-center justify-center w-5 h-5 shrink-0">
+                            <div className="absolute inset-0 rounded-full border-[2px] border-[#FA8500] border-t-transparent animate-[spin_1.5s_linear_infinite]" />
+                            <div className="w-[6px] h-[6px] bg-[#FA8500] rounded-full" />
+                        </div>
+                    ) : (
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    )}
+                    <p className="text-sm font-medium">{currentStepText}</p>
+                </div>
+            </div>
+
+            <ConfirmationModal 
+                isOpen={confirmation.isOpen}
+                onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
+                onConfirm={confirmation.onConfirm}
+                title={confirmation.title}
+                message={confirmation.message}
+                confirmText={confirmation.confirmText}
+                type={confirmation.type}
+            />
         </div>
     );
 };

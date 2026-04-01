@@ -1,0 +1,262 @@
+﻿[dotenv@17.3.1] injecting env (1) from .env -- tip: ÔÜÖ´©Å  suppress all logs with { quiet: true }
+Initializing Firebase with Default Credentials...
+Starting GitHub Actions Scraper Context...
+Received targetWeek argument: 02 Mar 2026
+Starting scraper...
+Establishing session and submitting search...
+Using overridden target week: 02 Mar 2026
+Successfully selected week: 02 Mar 2026
+Scraping results page 1...
+  10 decided applications on page 1.
+[T9HDWOSJISG00] Clicking into summary tab... (Erection of single storey extension exte...)
+[T9HDWOSJISG00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00157/LHE"
+    "alternative reference" => "PP-14642074"
+    "application received" => "Mon 26 Jan 2026"
+    "application validated" => "Thu 29 Jan 2026"
+    "address" => "34 Fordlands Road York YO19 4QG"
+    "proposal" => "Erection of single storey extension extending 5.99 metres be"
+    "status" => "Unknown"
+    "decision" => "LHE Approved"
+    "decision issued date" => "Thu 05 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T9HDWOSJISG00] ref=26/00157/LHE, decision="LHE Approved", status="LHE Approved"
+[T99ADNSJIQL00] Clicking into summary tab... (Erection of single storey flat roof exte...)
+[T99ADNSJIQL00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00139/LHE"
+    "alternative reference" => "PP-14617877"
+    "application received" => "Thu 22 Jan 2026"
+    "application validated" => "Fri 23 Jan 2026"
+    "address" => "Lodge Farm Moor End Acaster Malbis York YO23 2UQ"
+    "proposal" => "Erection of single storey flat roof extension extending 7.95"
+    "status" => "Unknown"
+    "decision" => "LHE Approved"
+    "decision issued date" => "Mon 02 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T99ADNSJIQL00] ref=26/00139/LHE, decision="LHE Approved", status="LHE Approved"
+[T961M7SJIOW00] Clicking into summary tab... (Two storey side and rear extension, sing...)
+[T961M7SJIOW00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00128/FUL"
+    "alternative reference" => "PP-14637158"
+    "application received" => "Tue 20 Jan 2026"
+    "application validated" => "Wed 21 Jan 2026"
+    "address" => "4 Broadway York YO10 4JW"
+    "proposal" => "Two storey side and rear extension, single storey rear exten"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Fri 06 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T961M7SJIOW00] ref=26/00128/FUL, decision="Householder Approval", status="Decided"
+Scraping results page 2...
+  10 decided applications on page 2.
+[T961LGSJIOT00] Clicking into summary tab... (Two storey side and single storey rear e...)
+[T961LGSJIOT00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00127/FUL"
+    "alternative reference" => "PP-14636853"
+    "application received" => "Tue 20 Jan 2026"
+    "application validated" => "Wed 21 Jan 2026"
+    "address" => "2 Lilac Avenue York YO10 3AT"
+    "proposal" => "Two storey side and single storey rear extension"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Fri 06 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T961LGSJIOT00] ref=26/00127/FUL, decision="Householder Approval", status="Decided"
+[T8QRLPSJIKF00] Clicking into summary tab... (Variation of condition 2 of permitted ap...)
+[T8QRLPSJIKF00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00060/FUL"
+    "alternative reference" => "PP-14612890"
+    "application received" => "Mon 12 Jan 2026"
+    "application validated" => "Tue 13 Jan 2026"
+    "address" => "43 Scarcroft Hill York YO24 1DF"
+    "proposal" => "Variation of condition 2 of permitted application 22/01628/F"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Tue 03 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T8QRLPSJIKF00] ref=26/00060/FUL, decision="Householder Approval", status="Decided"
+[T8I7A0SJIIC00] Clicking into summary tab... (Single storey side and rear extension, a...)
+[T8I7A0SJIIC00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00038/FUL"
+    "alternative reference" => "PP-14606493"
+    "application received" => "Wed 07 Jan 2026"
+    "application validated" => "Thu 08 Jan 2026"
+    "address" => "18 Old Orchard Haxby York YO32 3DU"
+    "proposal" => "Single storey side and rear extension, and conversion of att"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Thu 05 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T8I7A0SJIIC00] ref=26/00038/FUL, decision="Householder Approval", status="Decided"
+[T8HIAYSJIHZ00] Clicking into summary tab... (Single storey front extension...)
+[T8HIAYSJIHZ00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00033/FUL"
+    "alternative reference" => "PP-14601340"
+    "application received" => "Wed 07 Jan 2026"
+    "application validated" => "Thu 08 Jan 2026"
+    "address" => "14 Keble Park North Bishopthorpe York YO23 2SX"
+    "proposal" => "Single storey front extension"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Wed 04 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T8HIAYSJIHZ00] ref=26/00033/FUL, decision="Householder Approval", status="Decided"
+Scraping results page 3...
+  10 decided applications on page 3.
+[T8GCM6SJIHL00] Clicking into summary tab... (Variation of condition 2 of permitted ap...)
+[T8GCM6SJIHL00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00029/FUL"
+    "alternative reference" => "PP-14579718"
+    "application received" => "Tue 06 Jan 2026"
+    "application validated" => "Wed 07 Jan 2026"
+    "address" => "13 Stockholm Close York YO10 4NU"
+    "proposal" => "Variation of condition 2 of permitted application 24/02255/F"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Wed 04 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T8GCM6SJIHL00] ref=26/00029/FUL, decision="Householder Approval", status="Decided"
+[T8DT29SJIGB00] Clicking into summary tab... (Certificate of lawfulness for proposed d...)
+[T8DT29SJIGB00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "26/00011/CPD"
+    "alternative reference" => "PP-14597495"
+    "application received" => "Mon 05 Jan 2026"
+    "application validated" => "Tue 06 Jan 2026"
+    "address" => "20 Chestnut Avenue York YO31 1BR"
+    "proposal" => "Certificate of lawfulness for proposed development of single"
+    "status" => "Decided"
+    "decision" => "Grant"
+    "decision issued date" => "Tue 03 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T8DT29SJIGB00] ref=26/00011/CPD, decision="Grant", status="Decided"
+[T7NVM4SJIC800] Clicking into summary tab... (Variation of condition 2 (approved plans...)
+[T7NVM4SJIC800] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "25/02539/FUL"
+    "alternative reference" => "PP-14576185"
+    "application received" => "Mon 22 Dec 2025"
+    "application validated" => "Tue 06 Jan 2026"
+    "address" => "178 Beckfield Lane York YO26 5QS"
+    "proposal" => "Variation of condition 2 (approved plans) of permitted appli"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Tue 03 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T7NVM4SJIC800] ref=25/02539/FUL, decision="Householder Approval", status="Decided"
+[T7IBLWSJIBE00] Clicking into summary tab... (Single storey rear extension following r...)
+[T7IBLWSJIBE00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "25/02528/FUL"
+    "alternative reference" => "PP-14570341"
+    "application received" => "Fri 19 Dec 2025"
+    "application validated" => "Mon 22 Dec 2025"
+    "address" => "148 Fulford Road York YO10 4BE"
+    "proposal" => "Single storey rear extension following removal of existing l"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Fri 06 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T7IBLWSJIBE00] ref=25/02528/FUL, decision="Householder Approval", status="Decided"
+[T7EMABSJI9V00] Clicking into summary tab... (Single storey front and side extensions,...)
+[T7EMABSJI9V00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "25/02510/FUL"
+    "alternative reference" => "PP-14571272"
+    "application received" => "Wed 17 Dec 2025"
+    "application validated" => "Wed 07 Jan 2026"
+    "address" => "11 Church Street Copmanthorpe York YO23 3SA"
+    "proposal" => "Single storey front and side extensions, first floor side ex"
+    "status" => "Decided"
+    "decision" => "Application Withdrawn"
+    "decision issued date" => "Mon 02 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T7EMABSJI9V00] ref=25/02510/FUL, decision="Application Withdrawn", status="Decided"
+[T7CRLMSJI9000] Clicking into summary tab... (Single storey rear extension following d...)
+[T7CRLMSJI9000] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "25/02496/FUL"
+    "alternative reference" => "PP-14567824"
+    "application received" => "Tue 16 Dec 2025"
+    "application validated" => "Tue 30 Dec 2025"
+    "address" => "49 Rawcliffe Lane York YO30 5SJ"
+    "proposal" => "Single storey rear extension following demolition of existin"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Tue 03 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T7CRLMSJI9000] ref=25/02496/FUL, decision="Householder Approval", status="Decided"
+Scraping results page 4...
+  10 decided applications on page 4.
+[T5PYY1SJHRW00] Clicking into summary tab... (Single storey side and rear extension...)
+[T5PYY1SJHRW00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "25/02270/FUL"
+    "alternative reference" => "PP-14481604"
+    "application received" => "Fri 14 Nov 2025"
+    "application validated" => "Mon 17 Nov 2025"
+    "address" => "31 St Swithins Walk York YO26 4UG"
+    "proposal" => "Single storey side and rear extension"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Thu 05 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T5PYY1SJHRW00] ref=25/02270/FUL, decision="Householder Approval", status="Decided"
+[T3G6J8SJH4I00] Clicking into summary tab... (Single storey rear extension and dormer ...)
+[T3G6J8SJH4I00] Clicking further-info tab...
+    Table rows found: 11
+    "reference" => "25/01960/FUL"
+    "alternative reference" => "PP-14374250"
+    "application received" => "Wed 01 Oct 2025"
+    "application validated" => "Wed 12 Nov 2025"
+    "address" => "49 Lindley Street York YO24 4JG"
+    "proposal" => "Single storey rear extension and dormer to rear"
+    "status" => "Decided"
+    "decision" => "Householder Approval"
+    "decision issued date" => "Wed 04 Mar 2026"
+    "appeal status" => "Not Available"
+    "appeal decision" => "Not Available"
+    Table rows found: 0
+[T3G6J8SJH4I00] ref=25/01960/FUL, decision="Householder Approval", status="Decided"
+Scraping results page 5...
+  10 decided applications on page 5.
+Scraping results page 6...
+  10 decided applications on page 6.
+Done. Added: 0, Existing: 15, Errors: 0
+Job completed successfully. { added: 0, existing: 15, errors: 0 }

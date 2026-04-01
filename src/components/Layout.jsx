@@ -3,6 +3,7 @@ import { Menu } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Logo from '../assets/LogoColoured.png';
+import AudioRecorder from './AudioRecorder';
 
 const Layout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -37,6 +38,7 @@ const Layout = ({ children }) => {
                 <div className="p-4 md:p-8 flex-1 overflow-hidden flex flex-col">
                     {children}
                 </div>
+                <AudioRecorder />
             </main>
         </div>
     );

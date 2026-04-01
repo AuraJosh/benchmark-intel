@@ -112,7 +112,7 @@ const SignContract = () => {
             const signatureData = sigPad.current.getTrimmedCanvas().toDataURL("image/png");
 
             // Call Cloud Function for Finalization
-            const response = await fetch('https://europe-west2-benchmark-intelligence-a5b7c.cloudfunctions.net/signContract', {
+            const response = await fetch('https://europe-west2-benchmark-intel-3ea4a.cloudfunctions.net/signContract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

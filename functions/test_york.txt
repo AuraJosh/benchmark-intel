@@ -1,0 +1,13 @@
+Launching...
+Error: Failed to launch the browser process:  spawn C:\Users\Mojoa\AppData\Local\Temp\chromium ENOENT
+
+stderr:
+
+
+TROUBLESHOOTING: https://pptr.dev/troubleshooting
+
+    at ChildProcess.onClose (file:///C:/Personal/Business/Planning%20Shit/Benchmark%20Intelligence%20Software/benchmark-intelligence-main/functions/node_modules/@puppeteer/browsers/lib/esm/launch.js:339:24)
+    at ChildProcess.emit (node:events:508:28)
+    at ChildProcess._handle.onexit (node:internal/child_process:292:12)
+    at onErrorNT (node:internal/child_process:484:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)

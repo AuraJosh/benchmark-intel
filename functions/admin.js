@@ -21,4 +21,4 @@ if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     initializeApp();
 }
 
-export const db = getFirestore('benchmark-db');
+export const db = getFirestore();

@@ -562,9 +562,8 @@ const Contracts = () => {
                 </div>
             )}
 
-            {/* Slide-over for collecting a signature */}
-            <div className={`fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm flex justify-end transition-opacity duration-300 ${signingAgreement ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                <div className={`w-full max-w-3xl bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-500 ease-out ${signingAgreement ? 'translate-x-0' : 'translate-x-full'}`}>
+            {/* Slide-over for collecting a signature - Takeover Pattern */}
+            <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${signingAgreement ? 'translate-x-0' : 'translate-x-full'}`}>
                     {signingAgreement && (
                         <>
                             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
@@ -622,11 +621,9 @@ const Contracts = () => {
                         </>
                     )}
                 </div>
-            </div>
 
-            {/* Slide-over for viewing an executed agreement */}
-            <div className={`fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm flex justify-end transition-opacity duration-300 ${viewingAgreement ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                <div className={`w-full max-w-3xl bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-500 ease-out ${viewingAgreement ? 'translate-x-0' : 'translate-x-full'}`}>
+            {/* Slide-over for viewing an executed agreement - Takeover Pattern */}
+            <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${viewingAgreement ? 'translate-x-0' : 'translate-x-full'}`}>
                     {viewingAgreement && (
                         <>
                             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
@@ -678,7 +675,6 @@ const Contracts = () => {
                             </div>
                         </>
                     )}
-                </div>
             </div>
 
             {/* Modal: New Version */}
@@ -816,88 +812,80 @@ const Contracts = () => {
                     </div>
                 </div>
             )}
-            {/* Slide-over: Version Details */}
-            <div className={`fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm flex justify-end transition-opacity duration-300 ${viewingVersion ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                <div className={`w-full max-w-3xl bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-500 ease-out ${viewingVersion ? 'translate-x-0' : 'translate-x-full'}`}>
-                    {viewingVersion && (
-                        <>
-                            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
-                                <div>
-                                    <h2 className="text-xl font-bold text-[#0f172a]">{viewingVersion.title}</h2>
-                                    <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-bold">Template Created: {viewingVersion.createdAt ? new Date(viewingVersion.createdAt.toDate()).toLocaleDateString() : 'N/A'}</p>
-                                </div>
-                                <button onClick={() => setViewingVersion(null)} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-200 transition-colors">
-                                    <X className="h-6 w-6" />
-                                </button>
+            {/* Slide-over: Version Details - Takeover Pattern */}
+            <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${viewingVersion ? 'translate-x-0' : 'translate-x-full'}`}>
+                {viewingVersion && (
+                    <>
+                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
+                            <div>
+                                <h2 className="text-xl font-bold text-[#0f172a]">{viewingVersion.title}</h2>
+                                <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-bold">Template Created: {viewingVersion.createdAt ? new Date(viewingVersion.createdAt.toDate()).toLocaleDateString() : 'N/A'}</p>
                             </div>
-                            <div className="flex-1 overflow-y-auto">
-                                <div className="p-4 md:p-8 space-y-12">
-                                    {/* Content Preview */}
-                                    <section>
-                                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Template Body Preview</h3>
-                                        <div className="prose prose-sm max-w-none p-4 md:p-8 bg-gray-50 border border-gray-100 rounded-2xl text-gray-800 break-words overflow-x-hidden" 
-                                             dangerouslySetInnerHTML={{ __html: viewingVersion.content }}>
-                                        </div>
-                                    </section>
-
-                                    {/* Circulation Stats */}
-                                    <section className="space-y-6">
-                                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Builder Signatories</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                                            {/* Executed */}
-                                            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-                                                <div className="flex items-center gap-2 text-green-600 mb-4">
-                                                    <CheckCircle2 className="h-4 w-4" />
-                                                    <span className="text-xs font-bold uppercase tracking-wider">Signed & Executed</span>
-                                                </div>
-                                                <div className="space-y-3">
-                                                    {agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Signed').length === 0 ? (
-                                                        <p className="text-xs text-gray-400 py-4 text-center">No signed contracts yet.</p>
-                                                    ) : (
-                                                        agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Signed').map(a => (
-                                                            <div key={a.id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-                                                                <div>
-                                                                    <p className="text-sm font-bold text-gray-900">{getBuilderName(a.builderId)}</p>
-                                                                    <p className="text-[10px] text-gray-500">Signed: {a.dateSigned ? new Date(a.dateSigned.toDate()).toLocaleDateString() : ''}</p>
-                                                                </div>
-                                                                <button onClick={() => setViewingAgreement(a)} className="text-blue-600 hover:underline text-[10px] font-bold px-2 py-1 bg-blue-50 rounded">VIEW</button>
-                                                            </div>
-                                                        ))
-                                                    )}
-                                                </div>
+                            <button onClick={() => setViewingVersion(null)} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-200 transition-colors">
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto mini-scroll">
+                            <div className="p-4 md:p-8 space-y-12 max-w-4xl mx-auto">
+                                <section>
+                                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Template Body Preview</h3>
+                                    <div className="prose prose-sm max-w-none p-4 md:p-8 bg-gray-50 border border-gray-100 rounded-2xl text-gray-800 break-words overflow-x-hidden" 
+                                         dangerouslySetInnerHTML={{ __html: viewingVersion.content }}>
+                                    </div>
+                                </section>
+                                <section className="space-y-6">
+                                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Builder Signatories</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                                        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                                            <div className="flex items-center gap-2 text-green-600 mb-4">
+                                                <CheckCircle2 className="h-4 w-4" />
+                                                <span className="text-xs font-bold uppercase tracking-wider">Signed & Executed</span>
                                             </div>
-
-                                            {/* Pending */}
-                                            <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-                                                <div className="flex items-center gap-2 text-amber-600 mb-4">
-                                                    <AlertCircle className="h-4 w-4" />
-                                                    <span className="text-xs font-bold uppercase tracking-wider">Pending Signature</span>
-                                                </div>
-                                                <div className="space-y-3">
-                                                    {agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Pending').length === 0 ? (
-                                                        <p className="text-xs text-gray-400 py-4 text-center">No pending contracts.</p>
-                                                    ) : (
-                                                        agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Pending').map(a => (
-                                                            <div key={a.id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-                                                                <div>
-                                                                    <p className="text-sm font-bold text-gray-900">{getBuilderName(a.builderId)}</p>
-                                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                                        <span className="text-[9px] text-gray-400">ISSUED: {a.dateIssued ? new Date(a.dateIssued.toDate()).toLocaleDateString() : 'N/A'}</span>
-                                                                    </div>
-                                                                </div>
-                                                                <button onClick={() => openAgreement(a.id)} className="text-blue-600 hover:underline text-[10px] font-bold px-2 py-1 bg-blue-50 rounded">OPEN</button>
+                                            <div className="space-y-3">
+                                                {agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Signed').length === 0 ? (
+                                                    <p className="text-xs text-gray-400 py-4 text-center">No signed contracts yet.</p>
+                                                ) : (
+                                                    agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Signed').map(a => (
+                                                        <div key={a.id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+                                                            <div>
+                                                                <p className="text-sm font-bold text-gray-900">{getBuilderName(a.builderId)}</p>
+                                                                <p className="text-[10px] text-gray-500">Signed: {a.dateSigned ? new Date(a.dateSigned.toDate()).toLocaleDateString() : ''}</p>
                                                             </div>
-                                                        ))
-                                                    )}
-                                                </div>
+                                                            <button onClick={() => setViewingAgreement(a)} className="text-blue-600 hover:underline text-[10px] font-bold px-2 py-1 bg-blue-50 rounded">VIEW</button>
+                                                        </div>
+                                                    ))
+                                                )}
                                             </div>
                                         </div>
-                                    </section>
-                                </div>
+                                        <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                                            <div className="flex items-center gap-2 text-amber-600 mb-4">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <span className="text-xs font-bold uppercase tracking-wider">Pending Signature</span>
+                                            </div>
+                                            <div className="space-y-3">
+                                                {agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Pending').length === 0 ? (
+                                                    <p className="text-xs text-gray-400 py-4 text-center">No pending contracts.</p>
+                                                ) : (
+                                                    agreements.filter(a => a.versionId === viewingVersion.id && a.status === 'Pending').map(a => (
+                                                        <div key={a.id} className="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+                                                            <div>
+                                                                <p className="text-sm font-bold text-gray-900">{getBuilderName(a.builderId)}</p>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <span className="text-[9px] text-gray-400">ISSUED: {a.dateIssued ? new Date(a.dateIssued.toDate()).toLocaleDateString() : 'N/A'}</span>
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={() => openAgreement(a.id)} className="text-blue-600 hover:underline text-[10px] font-bold px-2 py-1 bg-blue-50 rounded">OPEN</button>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
                             </div>
-                        </>
-                    )}
-                </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

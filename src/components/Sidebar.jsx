@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Map as MapIcon, Users, LogOut, Loader2, Network, ClipboardList, LayoutDashboard, FileSignature, Receipt } from 'lucide-react';
+import { Home, Map as MapIcon, Users, LogOut, Loader2, Network, ClipboardList, LayoutDashboard, FileSignature, Receipt, MessageSquare, Package } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import Logo from '../assets/LogoColoured.png';
@@ -14,17 +14,20 @@ const Sidebar = () => {
     const navItems = [
         { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
         { label: 'Projects', icon: Home, path: '/projects' },
+        { label: 'Project Packs', icon: Package, path: '/packs' },
         { label: 'Builders', icon: Users, path: '/builders' },
+        { label: 'Routing', icon: MapIcon, path: '/routing' },
         { label: 'Contracts', icon: FileSignature, path: '/contracts' },
         { label: 'Invoices', icon: Receipt, path: '/invoices' },
-        { label: 'Capture Form', icon: ClipboardList, path: '/capture', external: true },
+        { label: 'Correspondence', icon: MessageSquare, path: '/correspondence' },
+        { label: 'Capture Logs', icon: ClipboardList, path: '/captures' },
     ];
 
     return (
         <div className="flex w-64 flex-col border-r border-gray-200 bg-white min-h-screen">
             <Link to="/" className="flex h-16 items-center border-b border-gray-100 px-6 mt-4 mb-4 gap-3 hover:bg-gray-50 transition-colors">
                 <img src={Logo} alt="Benchmark Intel" className="h-11 w-11 object-contain" />
-                <span className="text-[17px] font-semibold leading-tight tracking-tight text-[#0f172a]">Benchmark<br />Intelligence</span>
+                <span className="text-[17px] font-semibold leading-tight tracking-tight text-[#0f172a]">Benchmark<br />Intel</span>
             </Link>
 
             <nav className="flex-1 space-y-1.5 p-4">

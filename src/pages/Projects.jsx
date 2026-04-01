@@ -1,13 +1,17 @@
-import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive, Package, UploadCloud, File, Trash2 } from 'lucide-react';
+import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive, Package, UploadCloud, File, Trash2, MessageSquare, Navigation as NavIcon } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, where, writeBatch, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, where, writeBatch, limit, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import UniversalTimeline from '../components/UniversalTimeline';
+import StatusBadge from '../components/StatusBadge';
+import { generateCustomProjectId } from '../utils/projectIds';
+import PackWorkspace from './PackWorkspace';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 // Fix for default marker icons in React Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -36,6 +40,94 @@ const generateWBDates = (weeksBack = 52) => {
     return dates;
 };
 
+// Self-contained popup component so each pin has independent route picker state
+const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
+    const [popupRouteDate, setPopupRouteDate] = useState('');
+    const [popupExistingRouteId, setPopupExistingRouteId] = useState('');
+    const [adding, setAdding] = useState(false);
+    const [added, setAdded] = useState(false);
+
+    const handleAdd = async () => {
+        if (!popupRouteDate && !popupExistingRouteId) return;
+        setAdding(true);
+        try {
+            if (popupExistingRouteId) {
+                await updateDoc(doc(db, 'routes', popupExistingRouteId), {
+                    projectIds: arrayUnion(project.id)
+                });
+                setAdded(true);
+                setTimeout(() => onNavigate(`/routing?id=${popupExistingRouteId}`), 800);
+            } else if (popupRouteDate) {
+                const docRef = await addDoc(collection(db, 'routes'), {
+                    date: popupRouteDate,
+                    projectIds: [project.id],
+                    assignedTo: '',
+                    startAddress: '',
+                    endAddress: '',
+                    timestamp: serverTimestamp()
+                });
+                setAdded(true);
+                setTimeout(() => onNavigate(`/routing?id=${docRef.id}`), 800);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    return (
+        <div className="space-y-2" style={{ minWidth: 210 }}>
+            <p className="font-bold text-sm text-[#0f172a] leading-tight">{project.address}</p>
+            <p className="text-xs text-gray-500">{project.status}</p>
+            {project.description && <p className="text-xs text-gray-600 line-clamp-2">{project.description}</p>}
+
+            <div className="border-t border-gray-100 pt-2 space-y-1.5">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Add to Route</p>
+                <select
+                    value={popupExistingRouteId}
+                    onChange={e => { setPopupExistingRouteId(e.target.value); if (e.target.value) setPopupRouteDate(''); }}
+                    className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                    <option value="">Select existing route...</option>
+                    {routesList.map(r => (
+                        <option key={r.id} value={r.id}>
+                            {r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown Date'}
+                            {r.assignedTo ? ` — ${r.assignedTo}` : ''}
+                        </option>
+                    ))}
+                </select>
+                <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
+                    <div className="flex-1 h-px bg-gray-100" /> or new date <div className="flex-1 h-px bg-gray-100" />
+                </div>
+                <input
+                    type="date"
+                    value={popupRouteDate}
+                    onChange={e => { setPopupRouteDate(e.target.value); if (e.target.value) setPopupExistingRouteId(''); }}
+                    className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                />
+                <button
+                    onClick={handleAdd}
+                    disabled={adding || added || (!popupRouteDate && !popupExistingRouteId)}
+                    className={`w-full py-1.5 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5
+                        ${added ? 'bg-green-500 text-white' : 'bg-[#0f172a] text-white hover:bg-black disabled:opacity-40'}`}
+                >
+                    {added ? <><CheckCircle2 className="h-3 w-3" /> Added! Navigating...</> :
+                     adding ? <><Loader2 className="h-3 w-3 animate-spin" /> Adding...</> :
+                     <><MapPin className="h-3 w-3" /> Add to Route</>}
+                </button>
+            </div>
+
+            <button
+                onClick={onOpenProject}
+                className="w-full text-[11px] text-blue-600 font-semibold hover:underline text-left pt-1"
+            >
+                View full project details →
+            </button>
+        </div>
+    );
+};
+
 const Projects = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -46,6 +138,9 @@ const Projects = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedProject, setSelectedProject] = useState(null);
     const [closingProject, setClosingProject] = useState(null);
+    const [isWorkspaceClosing, setIsWorkspaceClosing] = useState(false);
+    const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+    const [confirmation, setConfirmation] = useState({ isOpen: false, type: 'warning' });
     const activeProject = selectedProject || closingProject;
 
     const [isUploadingPack, setIsUploadingPack] = useState(false);
@@ -54,17 +149,14 @@ const Projects = () => {
 
     const [editNotes, setEditNotes] = useState('');
     const [editStatus, setEditStatus] = useState('');
-    const [editSituation, setEditSituation] = useState('');
-    const [scopingChecklist, setScopingChecklist] = useState({
-        visited: false,
-        specsGathered: false,
-        detailsSent: false,
-    });
 
     // Related data for active project
     const [relatedInvoices, setRelatedInvoices] = useState([]);
     const [relatedContracts, setRelatedContracts] = useState([]);
     const [loadingRelated, setLoadingRelated] = useState(false);
+    const [hasCorrespondence, setHasCorrespondence] = useState(false);
+    const [recentCorrespondence, setRecentCorrespondence] = useState([]);
+    const [relatedCaptures, setRelatedCaptures] = useState([]);
 
     // Auto-detect viewMode from routing
     const initialViewMode = location.pathname === '/map' ? 'map' : 'list';
@@ -79,18 +171,69 @@ const Projects = () => {
     const syncDates = generateWBDates(52);
 
     const [builders, setBuilders] = useState([]);
-    const [projectAssignments, setProjectAssignments] = useState([]);
+    const [allAssignments, setAllAssignments] = useState([]);
     const [selectedBuilderToAssign, setSelectedBuilderToAssign] = useState('');
+    const [newProjectCollection, setNewProjectCollection] = useState('');
 
     const [sortBy, setSortBy] = useState('dateDecidedDesc');
-    const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Pack Sent', 'Quoted', 'Won', 'Paid', 'Revisit', 'Archive'];
+    const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Pack Sent', 'Quoted', 'Won', 'Paid', 'Revisit', 'Archive', 'Assigned'];
     const [filterStatus, setFilterStatus] = useState('All');
+    const [filterCollection, setFilterCollection] = useState('All');
     const [showArchive, setShowArchive] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 20;
 
     const [selectedRowIds, setSelectedRowIds] = useState([]);
     const [batchCollectionName, setBatchCollectionName] = useState('');
+    
+    // Routing state
+    const [routesList, setRoutesList] = useState([]);
+    const [routeDate, setRouteDate] = useState('');
+    const [existingRouteId, setExistingRouteId] = useState('');
+
+    // Map multi-select route mode
+    const [mapRouteMode, setMapRouteMode] = useState(false);
+    const [mapSelectedIds, setMapSelectedIds] = useState([]);
+    const [mapRouteDate, setMapRouteDate] = useState('');
+    const [mapExistingRouteId, setMapExistingRouteId] = useState('');
+    const [mapRouteAdding, setMapRouteAdding] = useState(false);
+
+    const toggleMapRouteMode = () => {
+        setMapRouteMode(v => !v);
+        setMapSelectedIds([]);
+        setMapRouteDate('');
+        setMapExistingRouteId('');
+    };
+
+    const toggleMapPin = (id) => {
+        setMapSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const handleMapBatchRoute = async () => {
+        if (mapSelectedIds.length === 0 || (!mapRouteDate && !mapExistingRouteId)) return;
+        setMapRouteAdding(true);
+        try {
+            if (mapExistingRouteId) {
+                await updateDoc(doc(db, 'routes', mapExistingRouteId), { projectIds: arrayUnion(...mapSelectedIds) });
+                navigate(`/routing?id=${mapExistingRouteId}`);
+            } else if (mapRouteDate) {
+                const docRef = await addDoc(collection(db, 'routes'), {
+                    date: mapRouteDate,
+                    projectIds: mapSelectedIds,
+                    assignedTo: '',
+                    startAddress: '',
+                    endAddress: '',
+                    timestamp: serverTimestamp()
+                });
+                navigate(`/routing?id=${docRef.id}`);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setMapRouteAdding(false);
+        }
+    };
+
 
     useEffect(() => {
         setViewMode(location.pathname === '/map' ? 'map' : 'list');
@@ -113,6 +256,13 @@ const Projects = () => {
     // Sync state with URL params
     useEffect(() => {
         const id = searchParams.get('id');
+        const statusParam = searchParams.get('status');
+
+        if (statusParam) {
+            setFilterStatus(statusParam);
+            if (statusParam === 'Archive') setShowArchive(true);
+        }
+
         if (id && projects.length > 0) {
             const project = projects.find(p => p.id === id);
             if (project) {
@@ -120,8 +270,6 @@ const Projects = () => {
                 setSelectedProject(project);
                 setEditNotes(project.notes || '');
                 setEditStatus(project.status || 'New');
-                setEditSituation(project.situation || '');
-                setScopingChecklist(project.scopingChecklist || { visited: false, specsGathered: false, detailsSent: false });
                 fetchRelatedData(id);
             }
         } else {
@@ -143,6 +291,10 @@ const Projects = () => {
             const conQ = query(collection(db, 'agreements'), where('projectId', '==', projectId));
             const conSnapshot = await getDocs(conQ);
             setRelatedContracts(conSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+            const capQ = query(collection(db, 'homeowners'), where('projectId', '==', projectId), orderBy('timestamp', 'desc'));
+            const capSnapshot = await getDocs(capQ);
+            setRelatedCaptures(capSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         } catch (error) {
             console.error("Error fetching related data:", error);
         } finally {
@@ -150,8 +302,42 @@ const Projects = () => {
         }
     };
 
+    // Check for correspondence
+    useEffect(() => {
+        if (!selectedProject?.id) return;
+        const q = query(collection(db, 'correspondence'), where('projectId', '==', selectedProject.id), orderBy('timestamp', 'desc'));
+        const unsubscribe = onSnapshot(q, (snap) => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setHasCorrespondence(docs.length > 0);
+            setRecentCorrespondence(docs.slice(0, 3));
+        });
+        return () => unsubscribe();
+    }, [selectedProject?.id]);
+
     const openProject = (project) => {
         setSearchParams({ id: project.id });
+    };
+
+    const openWorkspace = (projectId) => {
+        setSearchParams({ id: projectId, workspace: 'true' });
+    };
+
+    useEffect(() => {
+        if (searchParams.get('workspace') === 'true') {
+            const t = setTimeout(() => setIsWorkspaceOpen(true), 20);
+            return () => clearTimeout(t);
+        } else {
+            setIsWorkspaceOpen(false);
+        }
+    }, [searchParams.get('workspace')]);
+
+    const closeWorkspace = () => {
+        setIsWorkspaceClosing(true);
+        setIsWorkspaceOpen(false);
+        setTimeout(() => {
+            setSearchParams({ id: searchParams.get('id') }); // remove workspace but keep id for details panel if needed? Or clear all? Let's keep ID to return to details.
+            setIsWorkspaceClosing(false);
+        }, 480);
     };
 
     const closeProject = () => {
@@ -168,31 +354,51 @@ const Projects = () => {
         return () => unsubscribe();
     }, []);
 
-    // Fetch assignments when a project is selected
+    // Fetch all assignments (globally for filtering)
     useEffect(() => {
-        if (!selectedProject) {
-            setProjectAssignments([]);
-            return;
-        }
-
-        const q = query(collection(db, 'assignments'), where('projectId', '==', selectedProject.id));
-        const unsubscribe = onSnapshot(q, async (snapshot) => {
+        const q = query(collection(db, 'assignments'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
             const assignmentData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-            setProjectAssignments(assignmentData);
+            setAllAssignments(assignmentData);
         });
-
         return () => unsubscribe();
-    }, [selectedProject]);
+    }, []);
+
+    // Fetch all routes
+    useEffect(() => {
+        const q = query(collection(db, 'routes'), orderBy('timestamp', 'desc'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const routesData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+            setRoutesList(routesData);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const projectAssignments = selectedProject ? allAssignments.filter(a => a.projectId === selectedProject.id) : [];
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, filterStatus, sortBy]);
+    }, [searchQuery, filterStatus, filterCollection, sortBy]);
+
+    // Compute available collections dynamically based on all projects
+    const availableCollections = Array.from(new Set(
+        projects.reduce((acc, p) => {
+            if (p.collections && Array.isArray(p.collections)) {
+                acc.push(...p.collections);
+            }
+            if (p.collectionId && (!p.collections || !p.collections.includes(p.collectionId))) {
+                acc.push(p.collectionId);
+            }
+            return acc;
+        }, [])
+    )).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
     let filteredProjects = projects.filter(p => {
         const searchTerms = searchQuery.toLowerCase();
         const matchesSearch = p.address?.toLowerCase().includes(searchTerms) ||
             p.description?.toLowerCase().includes(searchTerms) ||
             p.collectionId?.toLowerCase().includes(searchTerms) ||
+            (p.collections && p.collections.some(c => c.toLowerCase().includes(searchTerms))) ||
             p.homeownerName?.toLowerCase().includes(searchTerms) ||
             p.reference?.toLowerCase().includes(searchTerms) ||
             p.applicationStatus?.toLowerCase().includes(searchTerms) ||
@@ -200,8 +406,15 @@ const Projects = () => {
 
         const matchesStatus = filterStatus === 'All'
             ? (showArchive ? true : p.status !== 'Archive')
-            : p.status === filterStatus;
-        return matchesSearch && matchesStatus;
+            : filterStatus === 'Assigned'
+                ? allAssignments.some(assign => assign.projectId === p.id)
+                : p.status === filterStatus;
+
+        const matchesCollection = filterCollection === 'All'
+            ? true
+            : (p.collections && p.collections.includes(filterCollection)) || (p.collectionId === filterCollection);
+
+        return matchesSearch && matchesStatus && matchesCollection;
     });
 
     filteredProjects.sort((a, b) => {
@@ -226,9 +439,7 @@ const Projects = () => {
             const projectRef = doc(db, 'projects', selectedProject.id);
             await updateDoc(projectRef, {
                 notes: editNotes,
-                status: editStatus,
-                situation: editSituation,
-                scopingChecklist: scopingChecklist
+                status: editStatus
             });
             closeProject();
         } catch (error) {
@@ -260,6 +471,34 @@ const Projects = () => {
         }
     };
 
+    const handleAddCollectionToProject = async (e) => {
+        e.preventDefault();
+        if (!selectedProject || !newProjectCollection.trim()) return;
+        try {
+            await updateDoc(doc(db, 'projects', selectedProject.id), {
+                collections: arrayUnion(newProjectCollection.trim())
+            });
+            setNewProjectCollection('');
+        } catch (error) {
+            console.error("Error adding collection:", error);
+            alert("Failed to add collection.");
+        }
+    };
+
+    const handleRemoveCollectionFromProject = async (collectionToRemove) => {
+        if (!selectedProject) return;
+        try {
+            const updates = { collections: arrayRemove(collectionToRemove) };
+            if (selectedProject.collectionId === collectionToRemove) {
+                updates.collectionId = null;
+            }
+            await updateDoc(doc(db, 'projects', selectedProject.id), updates);
+        } catch (error) {
+            console.error("Error removing collection:", error);
+            alert("Failed to remove collection.");
+        }
+    };
+
     const toggleRowSelect = (e, id) => {
         if (selectedRowIds.includes(id)) {
             setSelectedRowIds(selectedRowIds.filter(rid => rid !== id));
@@ -274,7 +513,10 @@ const Projects = () => {
             const batch = writeBatch(db);
             selectedRowIds.forEach(id => {
                 const ref = doc(db, 'projects', id);
-                batch.update(ref, { collectionId: batchCollectionName });
+                batch.update(ref, { 
+                    collections: arrayUnion(batchCollectionName),
+                    collectionId: batchCollectionName
+                });
             });
             await batch.commit();
             setSelectedRowIds([]);
@@ -282,6 +524,37 @@ const Projects = () => {
         } catch (error) {
             console.error("Batch collection update error:", error);
             alert("Failed to update collection.");
+        }
+    };
+
+    const handleBatchRoute = async () => {
+        if (selectedRowIds.length === 0) return;
+        if (!routeDate && !existingRouteId) {
+            alert("Please select a date for a new route, or choose an existing route.");
+            return;
+        }
+
+        try {
+            if (existingRouteId) {
+                const routeRef = doc(db, 'routes', existingRouteId);
+                await updateDoc(routeRef, {
+                    projectIds: arrayUnion(...selectedRowIds)
+                });
+                navigate(`/routing?id=${existingRouteId}`);
+            } else if (routeDate) {
+                const docRef = await addDoc(collection(db, 'routes'), {
+                    date: routeDate,
+                    projectIds: selectedRowIds,
+                    assignedTo: '',
+                    startAddress: '',
+                    endAddress: '',
+                    timestamp: serverTimestamp()
+                });
+                navigate(`/routing?id=${docRef.id}`);
+            }
+        } catch (error) {
+            console.error("Batch route update error:", error);
+            alert("Failed to update route.");
         }
     };
 
@@ -382,18 +655,27 @@ const Projects = () => {
     const handleDeleteProjectPack = async (e) => {
         e.stopPropagation();
         if (!activeProject?.finishedProjectPack) return;
-        if (!window.confirm("Are you sure you want to delete the finished project pack?")) return;
-
-        try {
-            const packRef = ref(storage, activeProject.finishedProjectPack.fullPath);
-            await deleteObject(packRef);
-            await updateDoc(doc(db, 'projects', activeProject.id), {
-                finishedProjectPack: null
-            });
-        } catch (error) {
-            console.error("Delete error:", error);
-            alert("Failed to delete project pack.");
-        }
+        
+        setConfirmation({
+            isOpen: true,
+            title: 'Delete Project Pack',
+            message: 'Are you sure you want to delete the finished project pack? This action will permanently remove the file from storage.',
+            confirmText: 'Delete Pack',
+            type: 'danger',
+            onConfirm: async () => {
+                try {
+                    const packRef = ref(storage, activeProject.finishedProjectPack.fullPath);
+                    await deleteObject(packRef);
+                    await updateDoc(doc(db, 'projects', activeProject.id), {
+                        finishedProjectPack: null
+                    });
+                    setConfirmation({ ...confirmation, isOpen: false });
+                } catch (error) {
+                    console.error("Delete error:", error);
+                    alert("Failed to delete project pack.");
+                }
+            }
+        });
     };
 
     return (
@@ -412,6 +694,19 @@ const Projects = () => {
                             <MapIcon className="h-3.5 w-3.5" /> Map
                         </button>
                     </div>
+                    {viewMode === 'map' && (
+                        <button
+                            onClick={toggleMapRouteMode}
+                            className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${
+                                mapRouteMode
+                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-inner'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'
+                            }`}
+                        >
+                            <NavIcon className={`h-4 w-4 ${mapRouteMode ? 'text-white' : 'text-gray-400'}`} />
+                            {mapRouteMode ? `Route Mode (${mapSelectedIds.length} selected)` : 'Route Mode'}
+                        </button>
+                    )}
                     <button
                         onClick={() => setShowArchive(!showArchive)}
                         className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${showArchive ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
@@ -458,6 +753,12 @@ const Projects = () => {
                                 <option key={status} value={status}>{status}</option>
                             ))}
                         </select>
+                        <select value={filterCollection} onChange={(e) => setFilterCollection(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white max-w-[200px] truncate">
+                            <option value="All">All Collections</option>
+                            {availableCollections.map(col => (
+                                <option key={col} value={col}>{col}</option>
+                            ))}
+                        </select>
                         <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white">
                             <option value="dateDecidedDesc">Decided (Newest)</option>
                             <option value="dateDecidedAsc">Decided (Oldest)</option>
@@ -477,9 +778,35 @@ const Projects = () => {
                                         placeholder="Collection..."
                                         value={batchCollectionName}
                                         onChange={(e) => setBatchCollectionName(e.target.value)}
-                                        className="rounded border border-blue-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-32"
+                                        className="rounded border border-blue-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 w-32 bg-white"
                                     />
                                     <button onClick={handleBatchCollect} className="bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-blue-700">Apply</button>
+                                </div>
+                                <div className="h-6 w-px bg-blue-200"></div>
+                                <div className="flex gap-2 items-center">
+                                    <input
+                                        type="date"
+                                        value={routeDate}
+                                        onChange={(e) => {
+                                            setRouteDate(e.target.value);
+                                            if (e.target.value) setExistingRouteId('');
+                                        }}
+                                        className="rounded border border-blue-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                                    />
+                                    <select
+                                        value={existingRouteId}
+                                        onChange={(e) => {
+                                            setExistingRouteId(e.target.value);
+                                            if (e.target.value) setRouteDate('');
+                                        }}
+                                        className="rounded border border-blue-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 max-w-[120px] truncate bg-white"
+                                    >
+                                        <option value="">Existing Route...</option>
+                                        {routesList.map(r => (
+                                            <option key={r.id} value={r.id}>{r.date ? new Date(r.date).toLocaleDateString() : 'Unknown Date'}</option>
+                                        ))}
+                                    </select>
+                                    <button onClick={handleBatchRoute} className="bg-emerald-600 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-emerald-700 flex items-center gap-1"><MapPin className="h-3 w-3" /> Add Route</button>
                                 </div>
                                 <div className="h-6 w-px bg-blue-200"></div>
                                 <div className="flex gap-2 items-center">
@@ -526,16 +853,24 @@ const Projects = () => {
                                                 </td>
                                                 <td className="px-6 py-4 font-medium text-[#0f172a]">
                                                     {project.address}
-                                                    {project.collectionId && <div className="text-xs text-blue-600 font-normal mt-1 flex items-center gap-1"><Filter className="h-3 w-3" /> {project.collectionId}</div>}
+                                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                                        {project.collections && project.collections.map((col, i) => (
+                                                            <div key={i} className="text-[10px] text-blue-600 font-bold flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit"><Filter className="h-2.5 w-2.5" />{col}</div>
+                                                        ))}
+                                                        {project.collectionId && (!project.collections || !project.collections.includes(project.collectionId)) && (
+                                                            <div className="text-[10px] text-blue-600 font-bold flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit"><Filter className="h-2.5 w-2.5" />{project.collectionId}</div>
+                                                        )}
+                                                        {(project.status === 'Pack Required' || project.status === 'Pack Created' || project.status === 'Pack Sent') && (
+                                                            <div className="text-[10px] text-gray-800 font-bold flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-300 shadow-sm w-fit" title="Project Pack ID">
+                                                                <FileText className="h-2.5 w-2.5" /> 
+                                                                 {project.customId || generateCustomProjectId(project.address, project.reference, project.coordinates)}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 truncate max-w-xs" title={project.description}>{project.description}</td>
                                                 <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${project.status === 'Won' ? 'border-green-200 bg-green-50 text-green-700' :
-                                                        project.status === 'Archive' ? 'border-gray-200 bg-gray-50 text-gray-700' :
-                                                            project.status === 'Paid' ? 'border-purple-200 bg-purple-50 text-purple-700' :
-                                                                project.status === 'Quoted' ? 'border-blue-200 bg-blue-50 text-blue-700' :
-                                                                    'border-yellow-200 bg-yellow-50 text-yellow-700'
-                                                        }`}>{project.status || 'New'}</span>
+                                                    <StatusBadge status={project.status} />
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-gray-500">{project.dateDecided ? new Date(project.dateDecided).toLocaleDateString() : 'N/A'}</td>
                                             </tr>
@@ -558,24 +893,96 @@ const Projects = () => {
                 ) : (
                     <div className="flex-1 w-full relative z-0 min-h-0">
                         <MapContainer
-                            center={selectedProject?.coordinates?.lat ? [selectedProject.coordinates.lat, selectedProject.coordinates.lng] : [53.9591, -1.0815]}
-                            zoom={selectedProject ? 16 : 13}
+                            center={[53.9591, -1.0815]}
+                            zoom={13}
                             style={{ height: '100%', width: '100%' }}
                         >
                             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                            {filteredProjects.filter(p => p.coordinates?.lat && p.coordinates?.lng).map(project => (
-                                <Marker key={project.id} position={[project.coordinates.lat, project.coordinates.lng]} eventHandlers={{ click: () => openProject(project) }}>
-                                    <Popup>
-                                        <div className="p-1 space-y-1">
-                                            <p className="font-bold text-sm text-[#0f172a]">{project.address}</p>
-                                            {project.collectionId && <p className="text-xs text-blue-600 font-medium">{project.collectionId}</p>}
-                                            <p className="text-xs text-gray-600 line-clamp-2">{project.description}</p>
-                                            <p className="text-xs font-semibold mt-1">Status: {project.status}</p>
-                                        </div>
-                                    </Popup>
-                                </Marker>
-                            ))}
+                            {filteredProjects.filter(p => p.coordinates?.lat && p.coordinates?.lng).map(project => {
+                                const isSelected = mapSelectedIds.includes(project.id);
+                                const icon = L.divIcon({
+                                    className: '',
+                                    html: `<div style="
+                                        width:28px;height:28px;border-radius:50% 50% 50% 0;
+                                        transform:rotate(-45deg);
+                                        background:${isSelected ? '#16a34a' : '#0284c7'};
+                                        border:2px solid white;
+                                        box-shadow:0 2px 6px rgba(0,0,0,0.3);
+                                        display:flex;align-items:center;justify-content:center;
+                                    "><div style="transform:rotate(45deg);color:white;font-size:10px;font-weight:bold;margin-top:2px;">${isSelected ? '✓' : ''}</div></div>`,
+                                    iconSize: [28, 28],
+                                    iconAnchor: [14, 28],
+                                    popupAnchor: [0, -30]
+                                });
+                                return (
+                                    <Marker
+                                        key={project.id}
+                                        position={[project.coordinates.lat, project.coordinates.lng]}
+                                        icon={icon}
+                                        eventHandlers={{
+                                            click: () => mapRouteMode ? toggleMapPin(project.id) : null
+                                        }}
+                                    >
+                                        {!mapRouteMode && (
+                                            <Popup minWidth={220}>
+                                                <MapPinPopup
+                                                    project={project}
+                                                    routesList={routesList}
+                                                    onOpenProject={() => openProject(project)}
+                                                    onNavigate={navigate}
+                                                />
+                                            </Popup>
+                                        )}
+                                    </Marker>
+                                );
+                            })}
                         </MapContainer>
+
+                        {/* Route Mode instruction banner */}
+                        {mapRouteMode && mapSelectedIds.length === 0 && (
+                            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg flex items-center gap-2 pointer-events-none">
+                                <NavIcon className="h-3.5 w-3.5" />
+                                Click pins to select stops for your route
+                            </div>
+                        )}
+
+                        {/* Floating action bar — slides up when pins are selected */}
+                        {mapRouteMode && mapSelectedIds.length > 0 && (
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 flex flex-col gap-3 animate-in slide-in-from-bottom-4 duration-200" style={{ minWidth: 320 }}>
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold text-[#0f172a]">{mapSelectedIds.length} stop{mapSelectedIds.length !== 1 ? 's' : ''} selected</p>
+                                    <button onClick={() => setMapSelectedIds([])} className="text-xs text-gray-400 hover:text-gray-600 font-medium">Clear</button>
+                                </div>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={mapExistingRouteId}
+                                        onChange={e => { setMapExistingRouteId(e.target.value); if (e.target.value) setMapRouteDate(''); }}
+                                        className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                    >
+                                        <option value="">Add to existing route...</option>
+                                        {routesList.map(r => (
+                                            <option key={r.id} value={r.id}>
+                                                {r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown'}{r.assignedTo ? ` — ${r.assignedTo}` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="date"
+                                        value={mapRouteDate}
+                                        onChange={e => { setMapRouteDate(e.target.value); if (e.target.value) setMapExistingRouteId(''); }}
+                                        className="rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                                        title="Or create a new route with this date"
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleMapBatchRoute}
+                                    disabled={mapRouteAdding || (!mapRouteDate && !mapExistingRouteId)}
+                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                                >
+                                    {mapRouteAdding ? <><Loader2 className="h-4 w-4 animate-spin" /> Adding to route...</> : <><MapPin className="h-4 w-4" /> Add {mapSelectedIds.length} stop{mapSelectedIds.length !== 1 ? 's' : ''} to Route</>}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -617,9 +1024,23 @@ const Projects = () => {
                                             <a href={activeProject.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm">
                                                 Portal <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
                                             </a>
-                                            <a href={`#/workspace?id=${activeProject.id}`} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#0f172a] border border-transparent rounded-lg text-white hover:bg-black shadow-sm">
+                                            <button 
+                                                onClick={() => openWorkspace(activeProject.id)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#0f172a] border border-transparent rounded-lg text-white hover:bg-black shadow-sm"
+                                            >
                                                 Open Workspace <ChevronRight className="h-3.5 w-3.5 text-white/70" />
-                                            </a>
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    const path = hasCorrespondence 
+                                                        ? `/correspondence?type=homeowner&id=${activeProject.id}` 
+                                                        : '/correspondence';
+                                                    navigate(path);
+                                                }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm"
+                                            >
+                                                <MessageSquare className="h-3.5 w-3.5 text-blue-500" /> Correspondence
+                                            </button>
                                         </div>
                                     <div className="md:col-span-3 pb-2 border-b border-gray-200 mb-2">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -706,10 +1127,16 @@ const Projects = () => {
                                     )}
                                 </div>
 
-                                <div className="bg-blue-50/50 p-6 border border-blue-100 rounded-xl space-y-4">
+                                <div className="bg-blue-50/50 p-6 border border-blue-100 rounded-xl space-y-6">
                                     <h3 className="text-sm font-semibold text-blue-900 flex items-center justify-between">
-                                        <span className="flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Homeowner Details</span>
-                                        {!activeProject.homeownerName && (
+                                        <span className="flex items-center gap-2"><ClipboardList className="h-4 w-4" /> Homeowner & Capture Details</span>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => navigate(`/captures?projectId=${activeProject.id}`)}
+                                                className="text-xs bg-white text-blue-600 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-50 transition-colors font-bold shadow-sm"
+                                            >
+                                                View All Logs
+                                            </button>
                                             <a
                                                 href={`#/capture?id=${activeProject.id}`}
                                                 target="_blank"
@@ -718,60 +1145,60 @@ const Projects = () => {
                                             >
                                                 <ExternalLink className="h-3 w-3" /> Open Capture Form
                                             </a>
-                                        )}
-                                    </h3>
-                                    {activeProject.homeownerName ? (
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                                            <div><h4 className="text-xs font-medium text-blue-700 uppercase tracking-widest">Name</h4><p className="mt-1 text-sm font-medium text-blue-900">{activeProject.homeownerName}</p></div>
-                                            <div><h4 className="text-xs font-medium text-blue-700 uppercase tracking-widest">Email</h4><a href={`mailto:${activeProject.homeownerEmail}`} className="mt-1 text-sm text-blue-600 hover:underline font-medium">{activeProject.homeownerEmail}</a></div>
-                                            <div><h4 className="text-xs font-medium text-blue-700 uppercase tracking-widest">Phone</h4><a href={`tel:${activeProject.homeownerPhone}`} className="mt-1 text-sm text-blue-600 hover:underline font-medium">{activeProject.homeownerPhone}</a></div>
                                         </div>
-                                    ) : (
-                                        <div className="text-center py-4">
-                                            <p className="text-sm text-blue-700/60 italic">No homeowner details captured yet.</p>
+                                    </h3>
+                                    
+                                    {/* Primary Info from Project Doc */}
+                                    {activeProject.homeownerName && (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6 bg-white/40 p-4 rounded-lg border border-blue-100/50">
+                                            <div><h4 className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Current Name</h4><p className="mt-1 text-sm font-bold text-blue-900">{activeProject.homeownerName}</p></div>
+                                            <div><h4 className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Email</h4><a href={`mailto:${activeProject.homeownerEmail}`} className="mt-1 text-sm text-blue-600 hover:underline font-bold">{activeProject.homeownerEmail}</a></div>
+                                            <div><h4 className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Phone</h4><a href={`tel:${activeProject.homeownerPhone}`} className="mt-1 text-sm text-blue-600 hover:underline font-bold">{activeProject.homeownerPhone}</a></div>
                                         </div>
                                     )}
-                                </div>
 
-                                {/* Scoping & Situation CRM Block */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
-                                    <div className="flex flex-col h-full bg-indigo-50/50 rounded-xl border border-indigo-200 p-6 shadow-sm">
-                                        <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2 mb-4">
-                                            <Activity className="h-4 w-4" /> The Situation
+                                    {/* Capture History Logs */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-[10px] font-bold text-blue-800 uppercase tracking-widest flex items-center gap-2 border-b border-blue-100 pb-2">
+                                            Capture History Log
                                         </h4>
-                                        <textarea
-                                            rows={4}
-                                            value={editSituation}
-                                            onChange={(e) => setEditSituation(e.target.value)}
-                                            placeholder="What's the current overarching situation with this homeowner?"
-                                            className="w-full text-sm p-3 rounded-lg border border-indigo-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none resize-none flex-1 bg-white mb-4"
-                                        />
-                                        <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2 mb-3 mt-2">
-                                            <ClipboardList className="h-4 w-4" /> Scoping Checklist
-                                        </h4>
-                                        <div className="space-y-2">
-                                            <label className="flex items-center gap-2 text-sm text-indigo-900 font-medium">
-                                                <input type="checkbox" checked={scopingChecklist.visited} onChange={(e) => setScopingChecklist(prev => ({ ...prev, visited: e.target.checked }))} className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4" />
-                                                House Visited
-                                            </label>
-                                            <label className="flex items-center gap-2 text-sm text-indigo-900 font-medium">
-                                                <input type="checkbox" checked={scopingChecklist.specsGathered} onChange={(e) => setScopingChecklist(prev => ({ ...prev, specsGathered: e.target.checked }))} className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4" />
-                                                Specs Gathered
-                                            </label>
-                                            <label className="flex items-center gap-2 text-sm text-indigo-900 font-medium">
-                                                <input type="checkbox" checked={scopingChecklist.detailsSent} onChange={(e) => setScopingChecklist(prev => ({ ...prev, detailsSent: e.target.checked }))} className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4" />
-                                                Details Sent to Network
-                                            </label>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="h-[400px]">
-                                        <UniversalTimeline projectId={activeProject.id} type="Homeowner Sync" />
+                                        {relatedCaptures.length > 0 ? (
+                                            <>
+                                                {relatedCaptures.slice(0, 3).map((cap, i) => (
+                                                    <div key={cap.id} onClick={() => navigate(`/captures?projectId=${activeProject.id}&id=${cap.id}`)} className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm flex justify-between items-center cursor-pointer hover:border-blue-300 transition-colors group">
+                                                        <div>
+                                                            <div className="text-sm font-bold text-gray-900 group-hover:text-blue-700 transition-colors">{cap.fullName}</div>
+                                                            <div className="text-[10px] text-gray-500 uppercase font-semibold mt-0.5">
+                                                                {cap.timestamp?.toDate ? cap.timestamp.toDate().toLocaleDateString() : 'Recent'} • {cap.email}
+                                                            </div>
+                                                        </div>
+                                                        <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-blue-500 transition-colors" />
+                                                    </div>
+                                                ))}
+                                                {relatedCaptures.length > 3 && (
+                                                    <button onClick={() => navigate(`/captures?projectId=${activeProject.id}`)} className="w-full text-center py-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest">
+                                                        + {relatedCaptures.length - 3} more logs
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="text-center py-4 bg-white/20 rounded-lg border border-blue-100 border-dashed">
+                                                <p className="text-xs text-blue-700/60 italic">No historical capture logs found for this project.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
+                                {/* Linked Entities Header */}
+                                <div className="pt-6 border-t border-gray-100">
+                                    <h3 className="text-lg font-extrabold text-[#0f172a] flex items-center gap-2 mb-6">
+                                        <Network className="h-5 w-5 text-blue-500" /> 
+                                        Linked Entities & History
+                                    </h3>
+                                </div>
+
+                                {/* Linked Entities */}
                                 <div className="space-y-6">
-                                    <h3 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-2 flex items-center gap-2"><Network className="h-5 w-5 text-gray-400" /> Linked Entities</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                                             <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between"><span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Builders</span><span className="text-[10px] bg-gray-200 px-1.5 py-0.5 rounded text-gray-600 font-bold">{projectAssignments.length}</span></div>
@@ -806,6 +1233,57 @@ const Projects = () => {
                                     </div>
                                 </div>
 
+                                {/* Recent Correspondence Block */}
+                                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                                        <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
+                                            <MessageSquare className="h-3.5 w-3.5" /> Recent Correspondence
+                                        </span>
+                                        <button 
+                                            onClick={() => {
+                                                const path = hasCorrespondence 
+                                                    ? `/correspondence?type=homeowner&id=${activeProject.id}` 
+                                                    : '/correspondence';
+                                                navigate(path);
+                                            }}
+                                            className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest"
+                                        >
+                                            {hasCorrespondence ? 'View Full Timeline' : 'Go to Section'}
+                                        </button>
+                                    </div>
+                                    <div className="p-4">
+                                        {recentCorrespondence.length === 0 ? (
+                                            <div className="py-4 text-center">
+                                                <p className="text-xs text-gray-400 italic">No correspondence logged yet.</p>
+                                                <button 
+                                                    onClick={() => navigate('/correspondence')}
+                                                    className="mt-2 text-[10px] bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors font-bold uppercase tracking-widest"
+                                                >
+                                                    Log First Interaction
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {recentCorrespondence.map(corr => (
+                                                    <div key={corr.id} className="flex gap-3 items-start border-l-2 border-blue-500/20 pl-4 py-1">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between mb-1">
+                                                                <span className="text-xs font-bold text-gray-800">{corr.category}</span>
+                                                                <span className="text-[10px] text-gray-400">
+                                                                    {corr.timestamp?.toDate ? corr.timestamp.toDate().toLocaleDateString() : 'Just now'}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                                                                {corr.notes}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Project Status</label>
@@ -820,6 +1298,55 @@ const Projects = () => {
                                         </select>
                                     </div>
                                     <div><label className="block text-sm font-medium text-gray-700 mb-2">Internal Notes</label><textarea rows={4} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0f172a] focus:ring-[#0f172a] text-sm p-3 border" placeholder="Add notes..." /></div>
+                                </div>
+
+                                <div className="bg-blue-50/30 p-6 rounded-xl border border-blue-100">
+                                    <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2 mb-4">
+                                        <Filter className="h-4 w-4 text-blue-500" /> Collections & Tags
+                                    </h3>
+                                    
+                                    <div className="space-y-4">
+                                        <div className="flex flex-wrap gap-2">
+                                            {activeProject.collections && activeProject.collections.map((col, i) => (
+                                                <div key={i} className="flex items-center gap-1.5 bg-white text-blue-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-blue-200 shadow-sm">
+                                                    <Filter className="h-3 w-3" /> {col}
+                                                    <button onClick={() => handleRemoveCollectionFromProject(col)} className="ml-1 text-gray-300 hover:text-red-500 transition-colors p-0.5">
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+
+                                            {activeProject.collectionId && (!activeProject.collections || !activeProject.collections.includes(activeProject.collectionId)) && (
+                                                <div className="flex items-center gap-1.5 bg-white text-blue-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-blue-200 shadow-sm">
+                                                    <Filter className="h-3 w-3" /> {activeProject.collectionId}
+                                                    <button onClick={() => handleRemoveCollectionFromProject(activeProject.collectionId)} className="ml-1 text-gray-300 hover:text-red-500 transition-colors p-0.5">
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {(!activeProject.collections || activeProject.collections.length === 0) && !activeProject.collectionId && (
+                                                <div className="text-sm text-gray-400 italic py-1 items-center flex">No tags added yet.</div>
+                                            )}
+                                        </div>
+
+                                        <form onSubmit={handleAddCollectionToProject} className="flex gap-3">
+                                            <input 
+                                                type="text" 
+                                                placeholder="Add new collection tag..." 
+                                                value={newProjectCollection}
+                                                onChange={(e) => setNewProjectCollection(e.target.value)}
+                                                className="block w-full rounded-md border-gray-300 text-sm focus:border-blue-500 focus:ring-blue-500 border px-3 py-2 bg-white"
+                                            />
+                                            <button 
+                                                type="submit"
+                                                disabled={!newProjectCollection.trim()}
+                                                className="bg-blue-600 px-6 py-2 rounded-md text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap shadow-sm"
+                                            >
+                                                Add Tag
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
 
                                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
@@ -888,6 +1415,27 @@ const Projects = () => {
                     </div>
                 </div>
             )}
+
+            {/* Slide-in Workspace Overlay */}
+            {(searchParams.get('workspace') === 'true' || isWorkspaceClosing) && (
+                <div 
+                    className={`absolute inset-0 z-[100] transition-all duration-500 ease-[cubic-bezier(0.2,0,0,1)] ${(isWorkspaceOpen && !isWorkspaceClosing) ? 'translate-x-0' : 'translate-x-full'}`}
+                >
+                    <div className="h-full w-full bg-white shadow-2xl overflow-hidden">
+                        <PackWorkspace id={searchParams.get('id')} onClose={closeWorkspace} />
+                    </div>
+                </div>
+            )}
+
+            <ConfirmationModal 
+                isOpen={confirmation.isOpen}
+                onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
+                onConfirm={confirmation.onConfirm}
+                title={confirmation.title}
+                message={confirmation.message}
+                confirmText={confirmation.confirmText}
+                type={confirmation.type}
+            />
         </div>
     );
 };

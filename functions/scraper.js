@@ -20,7 +20,7 @@ function parseDetailPages(htmlList) {
         console.log(`    Table rows found: ${rows.length}`);
 
         rows.each((i, row) => {
-            const th = $(row).find('th').text().replace(/\s+/g, ' ').trim().toLowerCase();
+            const th = $(row).find('th').text().replace(/:/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
             const td = $(row).find('td').text().replace(/\s+/g, ' ').trim();
             if (th && td) {
                 // Don't overwrite already-found non-empty values
@@ -212,10 +212,32 @@ export async function runScraper(targetWeekOverride = null) {
                 } catch (err) {
                     console.warn(`  Could not load further info tab for ${keyVal}: ${err.message}`);
                 }
+                
+                let contactsHtml = '';
+                let extractedApplicantName = 'Unknown';
+                try {
+                    await sleep(1000);
+                    await Promise.all([
+                        mainPage.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { }),
+                        mainPage.click('#subtab_contacts').catch(() => { })
+                    ]);
+                    await mainPage.waitForSelector('.tabcontainer', { timeout: 15000 });
+                    contactsHtml = await mainPage.content();
+                    
+                    const $c = cheerio.load(contactsHtml);
+                    const applicantP = $c('div.applicants p').first().text().trim();
+                    const agentP = $c('div.agents p').first().text().trim();
+                    
+                    if (applicantP && applicantP !== '') {
+                        extractedApplicantName = applicantP;
+                    }
+                } catch (err) {
+                    console.warn(`  Could not load contacts tab for ${keyVal}: ${err.message}`);
+                }
 
                 const parsed = parseDetailPages([summaryHtml, furtherInfoHtml]);
                 const fullDescription = parsed.fullDescription || appInfo.desc;
-                const applicantName = parsed.applicantName || 'Unknown';
+                const applicantName = extractedApplicantName !== 'Unknown' ? extractedApplicantName : (parsed.applicantName || 'Unknown');
                 const reference = parsed.reference;
                 const appStatus = parsed.appStatus || parsed.decisionText || 'Unknown';
                 const decisionText = parsed.decisionText || '';
@@ -268,7 +290,7 @@ export async function runScraper(targetWeekOverride = null) {
                         const encoded = encodeURIComponent(`${appInfo.addr}, York, UK`);
                         const geo = await axios.get(
                             `https://nominatim.openstreetmap.org/search?format=json&q=${encoded}&limit=1`,
-                            { headers: { 'User-Agent': 'BenchmarkIntelligence/1.0 (jamie.dark.business@gmail.com)' }, timeout: 8000 }
+                            { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
                         );
                         if (geo.data && geo.data.length > 0) {
                             projectData.coordinates = {

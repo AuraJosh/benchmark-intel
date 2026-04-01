@@ -1,8 +1,10 @@
-import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, Receipt, FileText, ChevronRight, Calculator, Calendar, User } from 'lucide-react';
+import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, Receipt, FileText, ChevronRight, Calculator, Calendar, User, MessageSquare, Archive, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, getDocs, where } from 'firebase/firestore';
+import UniversalTimeline from '../components/UniversalTimeline';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const Builders = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -18,6 +20,11 @@ const Builders = () => {
     const [relatedInvoices, setRelatedInvoices] = useState([]);
     const [relatedContracts, setRelatedContracts] = useState([]);
     const [loadingRelated, setLoadingRelated] = useState(false);
+    const [hasCorrespondence, setHasCorrespondence] = useState(false);
+    const [recentCorrespondence, setRecentCorrespondence] = useState([]);
+    const [showArchive, setShowArchive] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [confirmation, setConfirmation] = useState({ isOpen: false, type: 'warning' });
 
     // Derived state for animations
     const activeBuilder = selectedBuilder || closingBuilder;
@@ -101,6 +108,18 @@ const Builders = () => {
         }
     };
 
+    // Check for correspondence
+    useEffect(() => {
+        if (!selectedBuilder?.id) return;
+        const q = query(collection(db, 'correspondence'), where('builderId', '==', selectedBuilder.id), orderBy('timestamp', 'desc'));
+        const unsubscribe = onSnapshot(q, (snap) => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setHasCorrespondence(docs.length > 0);
+            setRecentCorrespondence(docs.slice(0, 3));
+        });
+        return () => unsubscribe();
+    }, [selectedBuilder?.id]);
+
     const handleAddBuilder = async (e) => {
         e.preventDefault();
         try {
@@ -127,6 +146,51 @@ const Builders = () => {
         }
     };
 
+    const archiveBuilder = async (builderId, isArchived) => {
+        setConfirmation({
+            isOpen: true,
+            title: isArchived ? 'Unarchive Builder' : 'Archive Builder',
+            message: isArchived ? 'Restore this builder to the active list?' : 'Move this builder to the archive? You can still find them in the archive section.',
+            confirmText: isArchived ? 'Unarchive' : 'Archive',
+            type: isArchived ? 'success' : 'archive',
+            onConfirm: async () => {
+                try {
+                    const builderRef = doc(db, 'builders', builderId);
+                    await updateDoc(builderRef, { status: isArchived ? 'Active' : 'Archive' });
+                    setConfirmation({ ...confirmation, isOpen: false });
+                    closeBuilder();
+                } catch (error) {
+                    console.error("Error archiving builder:", error);
+                    alert("Failed to archive builder");
+                }
+            }
+        });
+    };
+
+    const deleteBuilder = async (builderId) => {
+        setConfirmation({
+            isOpen: true,
+            title: 'Delete Builder',
+            message: 'Are you sure you want to PERMANENTLY delete this builder? This cannot be undone.',
+            confirmText: 'Delete Builder',
+            type: 'danger',
+            onConfirm: async () => {
+                setIsDeleting(true);
+                try {
+                    const { deleteDoc } = await import('firebase/firestore');
+                    await deleteDoc(doc(db, 'builders', builderId));
+                    setConfirmation({ ...confirmation, isOpen: false });
+                    closeBuilder();
+                } catch (error) {
+                    console.error("Error deleting builder:", error);
+                    alert("Failed to delete builder");
+                } finally {
+                    setIsDeleting(false);
+                }
+            }
+        });
+    };
+
     const openAddBuilder = () => {
         setIsClosingAdd(false);
         setIsAdding(true);
@@ -138,6 +202,8 @@ const Builders = () => {
         setTimeout(() => setIsClosingAdd(false), 500);
     };
 
+
+
     const openBuilder = (builder) => {
         setSearchParams({ id: builder.id });
     };
@@ -146,10 +212,15 @@ const Builders = () => {
         setSearchParams({});
     };
 
-    const filteredBuilders = builders.filter(b =>
-        b.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        b.ownerName?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredBuilders = builders.filter(b => {
+        const matchesSearch = b.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            b.ownerName?.toLowerCase().includes(searchQuery.toLowerCase());
+        
+        const isArchived = b.status === 'Archive';
+        const matchesArchive = showArchive ? isArchived : !isArchived;
+
+        return matchesSearch && matchesArchive;
+    });
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
@@ -158,13 +229,22 @@ const Builders = () => {
                     <h1 className="text-3xl font-semibold tracking-tight">Builders</h1>
                     <p className="mt-2 text-sm text-gray-500">Manage your network of trusted tradespeople.</p>
                 </div>
-                <button
-                    onClick={openAddBuilder}
-                    className="flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-black"
-                >
-                    <UserPlus className="h-4 w-4" />
-                    Add Builder
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        onClick={() => setShowArchive(!showArchive)}
+                        className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${showArchive ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
+                    >
+                        <Archive className={`h-4 w-4 ${showArchive ? 'text-amber-500' : 'text-gray-400'}`} />
+                        {showArchive ? 'Showing Archive' : 'View Archive'}
+                    </button>
+                    <button
+                        onClick={openAddBuilder}
+                        className="flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-black"
+                    >
+                        <UserPlus className="h-4 w-4" />
+                        Add Builder
+                    </button>
+                </div>
             </header>
 
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col min-h-0 flex-1">
@@ -254,9 +334,40 @@ const Builders = () => {
                                 <h3 className="text-xl font-semibold text-[#0f172a]">{activeBuilder.companyName}</h3>
                                 <p className="text-sm text-gray-500">Builder Profile & Relational View</p>
                             </div>
-                            <button onClick={closeBuilder} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
-                                <X className="h-6 w-6" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        const path = hasCorrespondence
+                                            ? `/correspondence?type=builder&id=${activeBuilder.id}`
+                                            : '/correspondence';
+                                        navigate(path);
+                                    }}
+                                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-[#0f172a] text-white rounded-lg hover:bg-black shadow-sm transition-all"
+                                >
+                                    <MessageSquare className="h-4 w-4 text-blue-400" />
+                                    Correspondence
+                                </button>
+                                <div className="h-8 w-px bg-gray-200 mx-1"></div>
+                                <button
+                                    onClick={() => archiveBuilder(activeBuilder.id, activeBuilder.status === 'Archive')}
+                                    title={activeBuilder.status === 'Archive' ? "Unarchive Builder" : "Archive Builder"}
+                                    className={`p-2 rounded-lg transition-colors border border-transparent ${activeBuilder.status === 'Archive' ? 'text-green-600 hover:bg-green-50 hover:border-green-100' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-100'}`}
+                                >
+                                    {activeBuilder.status === 'Archive' ? <Activity className="h-5 w-5" /> : <Archive className="h-5 w-5" />}
+                                </button>
+                                <button
+                                    onClick={() => deleteBuilder(activeBuilder.id)}
+                                    disabled={isDeleting}
+                                    title="Delete Builder"
+                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-50"
+                                >
+                                    {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
+                                </button>
+                                <div className="h-8 w-px bg-gray-200 mx-1"></div>
+                                <button onClick={closeBuilder} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
+                                    <X className="h-6 w-6" />
+                                </button>
+                            </div>
                         </div>
                         <div className="flex-1 overflow-y-auto px-6 py-8 mini-scroll">
                             <div className="max-w-4xl mx-auto space-y-10 pb-12">
@@ -278,8 +389,13 @@ const Builders = () => {
                                     </div>
                                 </section>
 
-                                <section className="space-y-6">
-                                    <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2">Business Activity & Relationships</h4>
+
+
+                                <section className="space-y-6 pt-6 border-t border-gray-100">
+                                    <h4 className="text-lg font-extrabold text-[#0f172a] flex items-center gap-2 mb-6">
+                                        <Network className="h-5 w-5 text-blue-500" />
+                                        Business Activity & Relationships
+                                    </h4>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                         {/* Projects */}
                                         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -320,6 +436,57 @@ const Builders = () => {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Recent Correspondence Block */}
+                                    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                                        <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                                            <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
+                                                <MessageSquare className="h-4 w-4" /> Recent Correspondence
+                                            </span>
+                                            <button 
+                                                onClick={() => {
+                                                    const path = hasCorrespondence 
+                                                        ? `/correspondence?type=builder&id=${activeBuilder.id}` 
+                                                        : '/correspondence';
+                                                    navigate(path);
+                                                }}
+                                                className="text-[10px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest"
+                                            >
+                                                {hasCorrespondence ? 'View Full Timeline' : 'Go to Section'}
+                                            </button>
+                                        </div>
+                                        <div className="p-4">
+                                            {recentCorrespondence.length === 0 ? (
+                                                <div className="py-4 text-center">
+                                                    <p className="text-xs text-gray-400 italic">No correspondence logged yet.</p>
+                                                    <button 
+                                                        onClick={() => navigate('/correspondence')}
+                                                        className="mt-2 text-[10px] bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors font-bold uppercase tracking-widest"
+                                                    >
+                                                        Log First Interaction
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    {recentCorrespondence.map(corr => (
+                                                        <div key={corr.id} className="flex gap-3 items-start border-l-2 border-blue-500/20 pl-4 py-1">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="text-xs font-bold text-gray-800">{corr.category}</span>
+                                                                    <span className="text-[10px] text-gray-400">
+                                                                        {corr.timestamp?.toDate ? corr.timestamp.toDate().toLocaleDateString() : 'Just now'}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
+                                                                    {corr.notes}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </section>
                             </div>
                         </div>
@@ -350,6 +517,17 @@ const Builders = () => {
                     </form>
                 </div>
             </div>
+
+            <ConfirmationModal 
+                isOpen={confirmation.isOpen}
+                onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
+                onConfirm={confirmation.onConfirm}
+                title={confirmation.title}
+                message={confirmation.message}
+                confirmText={confirmation.confirmText}
+                type={confirmation.type}
+                loading={isDeleting}
+            />
         </div>
     );
 };

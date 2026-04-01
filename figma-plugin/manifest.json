@@ -1,0 +1,14 @@
+{
+  "name": "Benchmark Project Packs",
+  "id": "benchmark-project-packs-v2",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://firebasestorage.googleapis.com",
+      "https://storage.googleapis.com"
+    ]
+  }
+}
