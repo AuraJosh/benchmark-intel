@@ -449,29 +449,29 @@ const Invoices = () => {
                 </div>
             )}
 
-            {/* Sidebar for Invoice Details / Payment Recording */}
-            <div className={`fixed inset-0 z-[70] bg-black/30 backdrop-blur-sm flex justify-end transition-opacity duration-300 ${selectedInvoice ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                <div className={`w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col transform transition-transform duration-500 ease-out ${selectedInvoice ? 'translate-x-0' : 'translate-x-full'}`}>
-                    {selectedInvoice && (
-                        <>
-                            <div className="px-6 py-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
-                                <div>
-                                    <h2 className="text-xl font-bold text-[#0f172a]">Invoice Schedule</h2>
-                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm mt-0.5">
-                                        <button onClick={(e) => { e.stopPropagation(); navigate(`/projects?id=${selectedInvoice.projectId}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
-                                            <MapPin className="h-3.5 w-3.5" /> Project: {getProjectAddress(selectedInvoice.projectId)}
-                                        </button>
-                                        <span className="text-gray-300">|</span>
-                                        <button onClick={(e) => { e.stopPropagation(); navigate(`/builders?id=${selectedInvoice.builderId}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
-                                            <Building className="h-3.5 w-3.5" /> Builder: {getBuilderName(selectedInvoice.builderId)}
-                                        </button>
-                                    </div>
+            {/* Full-screen Overlay for Invoice Details / Payment Recording */}
+            <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${selectedInvoice ? 'translate-x-0' : 'translate-x-full'}`}>
+                {selectedInvoice && (
+                    <>
+                        <div className="px-6 py-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                            <div>
+                                <h2 className="text-xl font-bold text-[#0f172a]">Invoice Schedule</h2>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm mt-0.5">
+                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/projects?id=${selectedInvoice.projectId}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
+                                        <MapPin className="h-3.5 w-3.5" /> Project: {getProjectAddress(selectedInvoice.projectId)}
+                                    </button>
+                                    <span className="text-gray-300">|</span>
+                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/builders?id=${selectedInvoice.builderId}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
+                                        <Building className="h-3.5 w-3.5" /> Builder: {getBuilderName(selectedInvoice.builderId)}
+                                    </button>
                                 </div>
-                                <button onClick={closeInvoice} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
-                                    <X className="h-6 w-6" />
-                                </button>
                             </div>
-                            <div className="flex-1 overflow-y-auto p-6 space-y-8" ref={scrollContainerRef}>
+                            <button onClick={closeInvoice} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
+                                <X className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8 mini-scroll" ref={scrollContainerRef}>
+                            <div className="max-w-4xl mx-auto space-y-8 pb-12">
                                 {showCompletionBanner && (
                                     <div className="p-[2px] rounded-3xl bg-gradient-to-r from-emerald-400 via-blue-500 to-indigo-600 animate-in zoom-in-95 duration-500 shadow-xl overflow-hidden relative">
                                         <div className="absolute top-2 right-2 p-2">
@@ -488,18 +488,18 @@ const Invoices = () => {
                                         </div>
                                     </div>
                                 )}
-                                <div className="grid grid-cols-3 gap-6">
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Commission</p>
-                                        <p className="text-lg font-bold text-gray-900">£{selectedInvoice.commissionTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                        <p className="text-xl font-bold text-gray-900">£{selectedInvoice.commissionTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                                     </div>
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base Rate</p>
-                                        <p className="text-lg font-bold text-gray-900">{selectedInvoice.boeBaseRate}%</p>
+                                        <p className="text-xl font-bold text-gray-900">{selectedInvoice.boeBaseRate}%</p>
                                     </div>
-                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Interest Policy</p>
-                                        <p className="text-lg font-bold text-blue-600">{selectedInvoice.boeBaseRate + 8}%</p>
+                                        <p className="text-xl font-bold text-blue-600">{selectedInvoice.boeBaseRate + 8}%</p>
                                     </div>
                                 </div>
 
@@ -541,7 +541,7 @@ const Invoices = () => {
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     <div className="space-y-1">
                                                         <div className="flex justify-between text-xs text-gray-500"><span>Base Amount:</span> <span>£{p.amount.toFixed(2)}</span></div>
                                                         {p.additionalCosts > 0 && <div className="flex justify-between text-xs text-gray-500"><span>Additional Costs:</span> <span>£{p.additionalCosts.toFixed(2)}</span></div>}
@@ -552,54 +552,54 @@ const Invoices = () => {
                                                     </div>
                                                     <div className="flex flex-col justify-end items-end space-y-1">
                                                         <div className="text-[10px] font-bold text-gray-400 uppercase">Paid to Date</div>
-                                                        <div className="text-2xl font-bold text-gray-900">£{p.amountPaid.toFixed(2)}</div>
+                                                        <div className="text-3xl font-bold text-gray-900">£{p.amountPaid.toFixed(2)}</div>
                                                         <div className="text-xs text-gray-500 italic">Remaining: £{Math.max(0, remaining).toFixed(2)}</div>
                                                     </div>
                                                 </div>
 
                                                 {p.status !== 'Paid' && (
-                                                    <div className="mt-6 flex justify-end">
+                                                    <div className="mt-8 flex justify-end">
                                                         {isRecordingPayment === id ? (
-                                                            <div className="flex items-center gap-2 w-full max-w-xs animate-in slide-in-from-right-2 duration-200">
+                                                            <div className="flex items-center gap-2 w-full max-w-sm animate-in slide-in-from-right-2 duration-200">
                                                                 <div className="relative flex-1">
                                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">£</span>
                                                                     <input
                                                                         type="number"
                                                                         value={paymentAmount}
                                                                         onChange={(e) => setPaymentAmount(e.target.value)}
-                                                                        className="w-full rounded-lg border border-gray-300 py-2 pl-7 pr-3 text-sm focus:border-[#0f172a] focus:outline-none"
+                                                                        className="w-full rounded-lg border border-gray-300 py-3 pl-7 pr-3 text-sm focus:border-[#0f172a] focus:outline-none"
                                                                         placeholder="Amount..."
                                                                         autoFocus
                                                                     />
                                                                 </div>
-                                                                <button onClick={handleRecordPayment} className="bg-[#0f172a] text-white p-2 rounded-lg hover:bg-black transition-colors"><Save className="h-4 w-4" /></button>
-                                                                <button onClick={() => setIsRecordingPayment(null)} className="text-gray-400 hover:text-gray-600 p-2"><X className="h-4 w-4" /></button>
+                                                                <button onClick={handleRecordPayment} className="bg-[#0f172a] text-white p-3 rounded-lg hover:bg-black transition-colors shadow-lg"><Save className="h-5 w-5" /></button>
+                                                                <button onClick={() => setIsRecordingPayment(null)} className="text-gray-400 hover:text-gray-600 p-2"><X className="h-5 w-5" /></button>
                                                             </div>
                                                         ) : (
                                                             <button
                                                                 onClick={() => { setIsRecordingPayment(id); setPaymentAmount(remaining.toFixed(2)); }}
-                                                                className="flex items-center gap-2 text-sm font-bold text-[#0284c7] hover:bg-blue-50 px-4 py-2 rounded-xl transition-all"
+                                                                className="flex items-center gap-2 text-sm font-bold text-[#0284c7] hover:bg-blue-50 px-6 py-3 rounded-xl transition-all border border-blue-100 shadow-sm"
                                                             >
-                                                                <Plus className="h-3 w-3" /> Record Payment
+                                                                <Plus className="h-4 w-4" /> Record Payment
                                                             </button>
                                                         )}
                                                     </div>
                                                 )}
                                             </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
                                 </div>
-                                <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl flex gap-3">
-                                    <AlertCircle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
-                                    <div className="text-xs text-orange-800 space-y-1">
+                                <div className="p-6 bg-orange-50 border border-orange-100 rounded-xl flex gap-4">
+                                    <AlertCircle className="h-6 w-6 text-orange-600 shrink-0 mt-0.5" />
+                                    <div className="text-sm text-orange-800 space-y-2">
                                         <p className="font-bold uppercase tracking-tight">Interest Policy Reminder</p>
                                         <p>Commission overdue is subject to a <strong>{selectedInvoice.boeBaseRate + 8}%</strong> annual rate (per your agreement of BoE + 8%). This is calculated daily on the remaining balance from the due date until the date paid.</p>
                                     </div>
                                 </div>
                             </div>
-                        </>
-                    )}
-                </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );

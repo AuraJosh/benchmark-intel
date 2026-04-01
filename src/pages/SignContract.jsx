@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { CheckCircle2, AlertCircle, Loader2, Lock, ShieldCheck, FileText, Calendar, User, Mail, Phone, Building } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 import { autofillContract } from '../utils/contractUtils';
@@ -128,6 +128,25 @@ const SignContract = () => {
 
             const result = await response.json();
             console.log("Contract finalized successfully:", result);
+
+            // Log this signature as an automated correspondence entry
+            try {
+                const logData = {
+                    category: 'Contract',
+                    subject: 'Contract Finalized',
+                    notes: `The ${agreement.type || 'Agreement'} has been signed and finalized by ${builder?.companyName || 'the builder'}. This interaction was automatically captured by the signature portal.`,
+                    timestamp: serverTimestamp(),
+                    direction: 'Inbound',
+                    staff: 'System',
+                    mode: agreement.projectId ? 'homeowner' : 'builder'
+                };
+                if (agreement.projectId) logData.projectId = agreement.projectId;
+                if (agreement.builderId) logData.builderId = agreement.builderId;
+                
+                await addDoc(collection(db, 'correspondence'), logData);
+            } catch (lErr) {
+                console.error("Failed to log correspondence auto-entry:", lErr);
+            }
 
             setSigned(true);
             setIsSubmitting(false);
