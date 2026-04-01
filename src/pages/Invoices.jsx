@@ -3,7 +3,7 @@ import confetti from 'canvas-confetti';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, where } from 'firebase/firestore';
-import { Receipt, Plus, Search, X, Calculator, Calendar, User, Home, CheckCircle2, AlertCircle, Clock, ArrowRight, Save, History, Percent, MapPin, Building, ChevronRight, ExternalLink, Sparkles } from 'lucide-react';
+import { Receipt, Plus, Search, X, Calculator, Calendar, User, Home, CheckCircle2, AlertCircle, Clock, ArrowRight, Save, History, Percent, MapPin, Building, ChevronRight, ExternalLink, Sparkles, Eye, EyeOff } from 'lucide-react';
 
 const BOE_BASE_RATE_DEFAULT = 5.25; // Example BoE rate
 
@@ -22,6 +22,7 @@ const Invoices = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState(null);
+    const [hidePaid, setHidePaid] = useState(() => localStorage.getItem('benchmark_invoices_hidePaid') === 'true');
 
     // Create Form states
     const [newInvoice, setNewInvoice] = useState({
@@ -43,6 +44,11 @@ const Invoices = () => {
     useEffect(() => {
         setShowCompletionBanner(false);
     }, [selectedInvoice?.id]);
+
+    // Persist hidePaid state
+    useEffect(() => {
+        localStorage.setItem('benchmark_invoices_hidePaid', hidePaid);
+    }, [hidePaid]);
 
     useEffect(() => {
         const unsubscribeInvoices = onSnapshot(query(collection(db, 'invoices'), orderBy('createdAt', 'desc')), (snapshot) => {
@@ -262,9 +268,13 @@ const Invoices = () => {
 
     const filteredInvoices = invoices.filter(inv => {
         const search = searchQuery.toLowerCase();
-        return getProjectAddress(inv.projectId).toLowerCase().includes(search) ||
+        const matchesSearch = getProjectAddress(inv.projectId).toLowerCase().includes(search) ||
             getBuilderName(inv.builderId).toLowerCase().includes(search) ||
             inv.status.toLowerCase().includes(search);
+        
+        if (!matchesSearch) return false;
+        if (hidePaid && inv.status.toLowerCase() === 'paid') return false;
+        return true;
     });
 
     return (
@@ -284,7 +294,7 @@ const Invoices = () => {
             </header>
 
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col min-h-0 flex-1">
-                <div className="flex items-center gap-4 border-b border-gray-100 p-4 shrink-0">
+                <div className="flex items-center justify-between border-b border-gray-100 p-4 shrink-0">
                     <div className="relative flex-1 max-w-md">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                         <input
@@ -295,6 +305,14 @@ const Invoices = () => {
                             className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-[#0f172a] focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
                         />
                     </div>
+                    
+                    <button
+                        onClick={() => setHidePaid(!hidePaid)}
+                        className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${hidePaid ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
+                    >
+                        <EyeOff className={`h-4 w-4 ${hidePaid ? 'text-amber-500' : 'text-gray-400'}`} />
+                        {hidePaid ? 'Hiding Paid' : 'Hide Paid Invoices'}
+                    </button>
                 </div>
 
                 <div className="overflow-auto flex-1">

@@ -22,7 +22,7 @@ const Builders = () => {
     const [loadingRelated, setLoadingRelated] = useState(false);
     const [hasCorrespondence, setHasCorrespondence] = useState(false);
     const [recentCorrespondence, setRecentCorrespondence] = useState([]);
-    const [showArchive, setShowArchive] = useState(false);
+    const [showArchive, setShowArchive] = useState(() => localStorage.getItem('benchmark_builders_showArchive') === 'true');
     const [isDeleting, setIsDeleting] = useState(false);
     const [confirmation, setConfirmation] = useState({ isOpen: false, type: 'warning' });
 
@@ -54,6 +54,11 @@ const Builders = () => {
 
         return () => unsubscribe();
     }, []);
+
+    // Persist showArchive state
+    useEffect(() => {
+        localStorage.setItem('benchmark_builders_showArchive', showArchive);
+    }, [showArchive]);
 
     // Sync state with URL params
     useEffect(() => {

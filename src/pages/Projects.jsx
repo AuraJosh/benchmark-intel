@@ -179,7 +179,7 @@ const Projects = () => {
     const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Pack Sent', 'Quoted', 'Won', 'Paid', 'Revisit', 'Archive', 'Assigned'];
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterCollection, setFilterCollection] = useState('All');
-    const [showArchive, setShowArchive] = useState(false);
+    const [showArchive, setShowArchive] = useState(() => localStorage.getItem('benchmark_projects_showArchive') === 'true');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 20;
 
@@ -252,6 +252,11 @@ const Projects = () => {
 
         return () => unsubscribe();
     }, []);
+
+    // Persist showArchive state
+    useEffect(() => {
+        localStorage.setItem('benchmark_projects_showArchive', showArchive);
+    }, [showArchive]);
 
     // Sync state with URL params
     useEffect(() => {

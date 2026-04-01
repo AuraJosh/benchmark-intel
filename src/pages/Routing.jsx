@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDocs, where, deleteDoc } from 'firebase/firestore';
-import { MapPin, Navigation, Map as MapIcon, Loader2, User, Users, ExternalLink, Calendar, CheckCircle2, ChevronRight, Save, Trash2, X, Activity } from 'lucide-react';
+import { MapPin, Navigation, Map as MapIcon, Loader2, User, Users, ExternalLink, Calendar, CheckCircle2, ChevronRight, Save, Trash2, X, Activity, Eye, EyeOff } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 
@@ -25,6 +25,8 @@ const Routing = () => {
     // Delete Confirmation Modal state
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [routeToDelete, setRouteToDelete] = useState(null);
+    const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem('benchmark_routing_hideCompleted') === 'true');
+    const [searchQuery, setSearchQuery] = useState(''); // Added for future use or to match Invoices pattern if needed
     
 
 
@@ -98,6 +100,11 @@ const Routing = () => {
 
         return () => clearTimeout(timerId);
     }, [selectedRoute]);
+
+    // Persist hideCompleted state
+    useEffect(() => {
+        localStorage.setItem('benchmark_routing_hideCompleted', hideCompleted);
+    }, [hideCompleted]);
 
     // Attach Google Places Autocomplete to address inputs once panel opens
     useEffect(() => {
@@ -477,6 +484,13 @@ const Routing = () => {
                     <h1 className="text-3xl font-semibold tracking-tight text-[#0f172a]">Routing</h1>
                     <p className="mt-1.5 text-sm text-gray-500">Plan and optimize project site visits.</p>
                 </div>
+                <button
+                    onClick={() => setHideCompleted(!hideCompleted)}
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${hideCompleted ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
+                >
+                    <EyeOff className={`h-4 w-4 ${hideCompleted ? 'text-amber-500' : 'text-gray-400'}`} />
+                    {hideCompleted ? 'Hiding Completed' : 'Hide Completed Routes'}
+                </button>
             </header>
 
             {/* Main Table View */}
@@ -507,7 +521,9 @@ const Routing = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                routes.map(r => (
+                                routes
+                                .filter(r => !hideCompleted || !r.completed)
+                                .map(r => (
                                     <tr 
                                         key={r.id} 
                                         onClick={() => setSearchParams({ id: r.id })} 
