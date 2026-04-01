@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, where } from 'firebase/firestore';
-import { Receipt, Plus, Search, X, Calculator, Calendar, User, Home, CheckCircle2, AlertCircle, Clock, ArrowRight, Save, History, Percent, MapPin, Building, ChevronRight, ExternalLink } from 'lucide-react';
+import { Receipt, Plus, Search, X, Calculator, Calendar, User, Home, CheckCircle2, AlertCircle, Clock, ArrowRight, Save, History, Percent, MapPin, Building, ChevronRight, ExternalLink, Sparkles } from 'lucide-react';
 
 const BOE_BASE_RATE_DEFAULT = 5.25; // Example BoE rate
 
@@ -429,6 +429,22 @@ const Invoices = () => {
                                 </button>
                             </div>
                             <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                                {selectedInvoice.status === 'Paid' && (
+                                    <div className="p-[2px] rounded-3xl bg-gradient-to-r from-emerald-400 via-blue-500 to-indigo-600 animate-in zoom-in-95 duration-500 shadow-xl overflow-hidden relative">
+                                        <div className="absolute top-2 right-2 p-2">
+                                            <Sparkles className="h-6 w-6 text-amber-300 animate-pulse" />
+                                        </div>
+                                        <div className="absolute bottom-2 left-2 p-2 transform rotate-180">
+                                            <Sparkles className="h-4 w-4 text-amber-200 animate-pulse" />
+                                        </div>
+                                        <div className="bg-white/95 backdrop-blur-sm rounded-[22px] py-10 px-6 text-center">
+                                            <h3 className="text-3xl font-black text-[#0f172a] tracking-tight uppercase leading-none">Full Project Paid</h3>
+                                            <p className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent mt-3 italic">
+                                                "we fucking did it."
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-3 gap-6">
                                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Commission</p>
