@@ -85,7 +85,12 @@ const Contracts = () => {
     };
 
     const closeAgreement = () => {
-        setSearchParams({});
+        const backTo = searchParams.get('backTo');
+        if (backTo) {
+            navigate(backTo);
+        } else {
+            setSearchParams({});
+        }
     };
 
     // Actions

@@ -770,7 +770,7 @@ const Routing = () => {
                                                                     Stop {idx + 1}
                                                                 </span>
                                                                 <button 
-                                                                    onClick={() => navigate(`/projects?id=${p.id}`)}
+                                                                    onClick={() => navigate(`/projects?id=${p.id}&backTo=${encodeURIComponent(`/routing?id=${selectedRoute.id}`)}`)}
                                                                     className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
                                                                     title="View Project Details"
                                                                 >

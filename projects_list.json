@@ -24,12 +24,12 @@
       "etag": "1_53217386-c908-4d58-83ac-d021d0f8148e"
     },
     {
-      "projectId": "benchmark-intelligence-a5b7c",
+      "projectId": "benchmark-intel-3ea4a",
       "projectNumber": "785316881089",
       "displayName": "Benchmark Intel",
-      "name": "projects/benchmark-intelligence-a5b7c",
+      "name": "projects/benchmark-intel-3ea4a",
       "resources": {
-        "hostingSite": "benchmark-intelligence-a5b7c"
+        "hostingSite": "benchmark-intel-3ea4a"
       },
       "state": "ACTIVE",
       "etag": "1_ca3737ba-2bb9-4974-83fc-2d88fae58ec4"

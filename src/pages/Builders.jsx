@@ -209,7 +209,12 @@ const Builders = () => {
     };
 
     const closeBuilder = () => {
-        setSearchParams({});
+        const backTo = searchParams.get('backTo');
+        if (backTo) {
+            navigate(backTo);
+        } else {
+            setSearchParams({});
+        }
     };
 
     const filteredBuilders = builders.filter(b => {
@@ -402,7 +407,7 @@ const Builders = () => {
                                             <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between"><span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Network className="h-3.5 w-3.5" /> Assigned Projects</span><span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full font-bold">{assignedProjects.length}</span></div>
                                             <div className="p-2 space-y-1">
                                                 {assignedProjects.length === 0 ? <p className="text-xs text-gray-400 p-4 text-center italic">No projects assigned.</p> : assignedProjects.map(proj => (
-                                                    <button key={proj.id} onClick={() => navigate(`/projects?id=${proj.id}`)} className="w-full text-left p-2.5 hover:bg-blue-50 rounded-lg group transition-colors flex items-center justify-between">
+                                                    <button key={proj.id} onClick={() => navigate(`/projects?id=${proj.id}&backTo=${encodeURIComponent(`/builders?id=${activeBuilder.id}`)}`)} className="w-full text-left p-2.5 hover:bg-blue-50 rounded-lg group transition-colors flex items-center justify-between">
                                                         <div className="truncate flex-1"><p className="text-sm font-bold text-gray-900 group-hover:text-blue-700 truncate">{proj.address}</p><p className="text-[10px] text-gray-500 uppercase">{proj.assignmentStatus}</p></div>
                                                         <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400" />
                                                     </button>
@@ -415,7 +420,7 @@ const Builders = () => {
                                             <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between"><span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><Receipt className="h-3.5 w-3.5" /> Recent Invoices</span><span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full font-bold">{relatedInvoices.length}</span></div>
                                             <div className="p-2 space-y-1">
                                                 {relatedInvoices.length === 0 ? <p className="text-xs text-gray-400 p-4 text-center italic">No invoices issued.</p> : relatedInvoices.map(inv => (
-                                                    <button key={inv.id} onClick={() => navigate(`/invoices?id=${inv.id}`)} className="w-full text-left p-2.5 hover:bg-blue-50 rounded-lg group transition-colors flex items-center justify-between">
+                                                    <button key={inv.id} onClick={() => navigate(`/invoices?id=${inv.id}&backTo=${encodeURIComponent(`/builders?id=${activeBuilder.id}`)}`)} className="w-full text-left p-2.5 hover:bg-blue-50 rounded-lg group transition-colors flex items-center justify-between">
                                                         <div className="truncate flex-1"><p className="text-sm font-bold text-gray-900 group-hover:text-blue-700">£{inv.commissionTotal.toFixed(2)}</p><p className="text-[10px] text-gray-500 uppercase">{inv.status}</p></div>
                                                         <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400" />
                                                     </button>
@@ -428,7 +433,7 @@ const Builders = () => {
                                             <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between"><span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2"><FileText className="h-3.5 w-3.5" /> Recent Contracts</span><span className="text-xs bg-gray-200 px-2 py-0.5 rounded-full font-bold">{relatedContracts.length}</span></div>
                                             <div className="p-2 space-y-1">
                                                 {relatedContracts.length === 0 ? <p className="text-xs text-gray-400 p-4 text-center italic">No contracts issued.</p> : relatedContracts.map(con => (
-                                                    <button key={con.id} onClick={() => navigate(`/contracts?id=${con.id}`)} className="w-full text-left p-2.5 hover:bg-blue-50 rounded-lg group transition-colors flex items-center justify-between">
+                                                    <button key={con.id} onClick={() => navigate(`/contracts?id=${con.id}&backTo=${encodeURIComponent(`/builders?id=${activeBuilder.id}`)}`)} className="w-full text-left p-2.5 hover:bg-blue-50 rounded-lg group transition-colors flex items-center justify-between">
                                                         <div className="truncate flex-1"><p className="text-sm font-bold text-gray-900 group-hover:text-blue-700">{con.status === 'Signed' ? 'SIGNED' : 'PENDING'}</p><p className="text-[10px] text-gray-500 uppercase">{con.dateIssued ? new Date(con.dateIssued.toDate()).toLocaleDateString() : 'N/A'}</p></div>
                                                         <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-blue-400" />
                                                     </button>

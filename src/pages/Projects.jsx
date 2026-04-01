@@ -341,7 +341,12 @@ const Projects = () => {
     };
 
     const closeProject = () => {
-        setSearchParams({});
+        const backTo = searchParams.get('backTo');
+        if (backTo) {
+            navigate(backTo);
+        } else {
+            setSearchParams({});
+        }
     };
 
     // Fetch all builders for assignments

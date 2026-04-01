@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -29,6 +29,7 @@ const getDt = (ts) => {
 
 const Dashboard = () => {
     const navigate = useNavigate();
+    const scrollRef = useRef(null);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
         totalProjects: 0,
@@ -54,6 +55,7 @@ const Dashboard = () => {
     const [builders, setBuilders] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [interactions, setInteractions] = useState([]);
+    const [invoices, setInvoices] = useState([]);
     const [reminders, setReminders] = useState([]);
     const [showReminders, setShowReminders] = useState(true);
     const [thresholdDays, setThresholdDays] = useState(10);
@@ -123,9 +125,12 @@ const Dashboard = () => {
 
             const invoicesQuery = query(collection(db, 'invoices'));
             unsubscribeInvoices = onSnapshot(invoicesQuery, (snapshot) => {
+                const invData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setInvoices(invData);
+                
                 let unpaid = 0;
-                snapshot.forEach(doc => {
-                    const s = doc.data().status;
+                invData.forEach(inv => {
+                    const s = inv.status;
                     if (s === 'Pending' || s === 'Partial' || s === 'pending' || s === 'partial') unpaid++;
                 });
                 setStats(prev => ({ ...prev, unpaidInvoices: unpaid }));
@@ -304,12 +309,55 @@ const Dashboard = () => {
 
         projects.forEach(p => checkContact(p, 'homeowner'));
         builders.forEach(b => checkContact(b, 'builder'));
+        
+        // 3. Check for Pending/Overdue Invoices
+        invoices.forEach(inv => {
+            const currentStatus = (inv.status || '').toLowerCase();
+            if (currentStatus === 'paid') return;
+            
+            const builder = builders.find(b => b.id === inv.builderId);
+            const builderName = builder?.companyName || 'Unknown Builder';
+
+            if (inv.payments) {
+                ['p1', 'p2', 'p3'].forEach((pKey) => {
+                    const pay = inv.payments[pKey];
+                    // Only check if it's not paid and has a due date
+                    const payStatus = (pay?.status || '').toLowerCase();
+                    if (pay && payStatus !== 'paid' && pay.dueDate) {
+                        const dueDate = getDt(pay.dueDate);
+                        if (dueDate) {
+                            dueDate.setHours(0, 0, 0, 0);
+                            const isDueToday = dueDate.getTime() === now.getTime();
+                            const isOverdue = dueDate < now;
+
+                            if (isDueToday || isOverdue) {
+                                // Prevent duplication if builder already has a reminder
+                                if (reminderList.some(r => r.id === `${inv.id}-${pKey}`)) return;
+
+                                reminderList.push({
+                                    id: `${inv.id}-${pKey}`,
+                                    type: 'invoice',
+                                    contactId: inv.id,
+                                    name: `Chase Invoice: ${builderName}`,
+                                    status: isOverdue ? 'Overdue' : 'Due Today',
+                                    date: dueDate,
+                                    priority: isOverdue ? 1 : 2
+                                });
+                            }
+                        }
+                    }
+                });
+            }
+        });
 
         // prioritize: Overdue (1), Due Today (2), Inactivity (3)
-        reminderList.sort((a, b) => a.priority - b.priority);
+        reminderList.sort((a, b) => {
+            if (a.priority !== b.priority) return a.priority - b.priority;
+            return (a.date?.getTime() || 0) - (b.date?.getTime() || 0);
+        });
 
         setReminders(reminderList);
-    }, [projects, builders, interactions, thresholdDays]);
+    }, [projects, builders, interactions, invoices, thresholdDays]);
 
     const clearReminder = async (reminder) => {
         const colName = reminder.type === 'builder' ? 'builders' : 'projects';
@@ -337,7 +385,7 @@ const Dashboard = () => {
 
     const handlePieClick = (data) => {
         if (data && data.status) {
-            navigate(`/projects?status=${encodeURIComponent(data.status)}`);
+            navigate(`/projects?status=${encodeURIComponent(data.status)}&backTo=/dashboard`);
         }
     };
 
@@ -351,10 +399,9 @@ const Dashboard = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
+            <header className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div>
-                    <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
-                    <p className="mt-2 text-sm text-gray-500">Live overview and key metrics from the platform.</p>
+                    <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
                 </div>
                 <div className="flex items-center gap-3">
                     {!showReminders && reminders.length > 0 && (
@@ -372,8 +419,8 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            <div className="flex-1 overflow-auto pb-6 w-full">
-                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${showReminders ? 'max-h-[1000px] opacity-100 mb-10' : 'max-h-0 opacity-0 mb-0'}`}>
+            <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden pb-4">
+                <div className={`shrink-0 transition-all duration-500 ease-in-out ${showReminders && reminders.length > 0 ? 'opacity-100 mb-3 max-h-[300px]' : 'max-h-0 opacity-0 mb-0 overflow-hidden'}`}>
                      <div className="w-full max-w-7xl animate-fade-in">
                           <div className="flex items-center justify-between mb-4 px-1">
                                <div className="flex items-center gap-2">
@@ -393,15 +440,28 @@ const Dashboard = () => {
                           </div>
 
                           {reminders.length === 0 ? (
-                               <div className="bg-white border border-gray-100 rounded-xl p-8 flex flex-col items-center justify-center shadow-sm">
-                                   <div className="h-12 w-12 bg-green-50 rounded-2xl flex items-center justify-center mb-3"><CheckCircle2 className="h-6 w-6 text-green-500" /></div>
-                                   <p className="text-sm font-bold text-gray-900 tracking-tight">Everything is up to date</p>
-                                   <p className="text-xs text-gray-400 mt-1 max-w-sm text-center font-medium">Tracking {thresholdDays} days since last interaction for active contacts.</p>
+                               <div className="bg-white border border-gray-100 rounded-xl p-6 flex flex-col items-center justify-center shadow-sm h-[130px]">
+                                   <CheckCircle2 className="h-6 w-6 text-green-500 mb-2" />
+                                   <p className="text-sm font-bold text-gray-900">Everything is up to date</p>
                                </div>
                           ) : (
-                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-3">
+                               <div 
+                                    ref={scrollRef}
+                                    onWheel={(e) => {
+                                        if (scrollRef.current) {
+                                            scrollRef.current.scrollLeft += e.deltaY;
+                                        }
+                                    }}
+                                    className="flex gap-4 overflow-x-auto pb-4 pt-1 mini-scroll -mx-1 px-1"
+                                >
                                     {reminders.map(r => (
-                                         <div key={r.id} onClick={() => navigate(`/correspondence?type=${r.type === 'homeowner' ? 'homeowner' : 'builder'}&id=${r.contactId}`)} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md group relative flex flex-col min-h-0 overflow-visible cursor-pointer">
+                                         <div key={r.id} onClick={() => {
+                                              if (r.type === 'invoice') {
+                                                  navigate(`/invoices?id=${r.contactId}&backTo=/dashboard`);
+                                              } else {
+                                                  navigate(`/correspondence?type=${r.type === 'homeowner' ? 'homeowner' : 'builder'}&id=${r.contactId}`);
+                                              }
+                                         }} className="min-w-[280px] max-w-[280px] flex-shrink-0 bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md group relative flex flex-col min-h-0 overflow-visible cursor-pointer">
                                               {/* Circular Icons on the border */}
                                               <div className="absolute -top-2.5 -right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform group-hover:scale-100 scale-90 z-10 pointer-events-none group-hover:pointer-events-auto">
                                                    <button onClick={(e) => { e.stopPropagation(); snoozeReminder(r); }} title="Snooze 3 days" className="h-6 w-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors pointer-events-auto">
@@ -429,54 +489,54 @@ const Dashboard = () => {
                      </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 w-full max-w-7xl animate-fade-in">
+                <div className="shrink-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3 w-full max-w-7xl animate-fade-in">
                     {/* Stat Cards */}
                     <div 
-                        onClick={() => navigate('/projects')}
-                        className="bg-blue-50 p-6 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group"
+                        onClick={() => navigate('/projects?backTo=/dashboard')}
+                        className="bg-blue-50 p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group"
                     >
-                        <div className="bg-blue-100 p-3 rounded-lg group-hover:scale-110 transition-transform"><Home className="h-6 w-6 text-blue-600" /></div>
+                        <div className="bg-blue-100 p-2.5 rounded-lg group-hover:scale-110 transition-transform"><Home className="h-5 w-5 text-blue-600" /></div>
                         <div>
-                            <p className="text-sm font-medium text-gray-500">New This Week</p>
-                            <p className="text-2xl font-semibold text-gray-900">{stats.thisWeekTotal}</p>
+                            <p className="text-xs font-medium text-gray-500">New This Week</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.thisWeekTotal}</p>
                         </div>
                     </div>
                     <div 
                         onClick={() => navigate('/builders')}
-                        className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-green-400 hover:shadow-md transition-all group"
+                        className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 cursor-pointer hover:border-green-400 hover:shadow-md transition-all group"
                     >
-                        <div className="bg-green-50 p-3 rounded-lg group-hover:scale-110 transition-transform"><Users className="h-6 w-6 text-green-600" /></div>
+                        <div className="bg-green-50 p-2.5 rounded-lg group-hover:scale-110 transition-transform"><Users className="h-5 w-5 text-green-600" /></div>
                         <div>
-                            <p className="text-sm font-medium text-gray-500">Available Builders</p>
-                            <p className="text-2xl font-semibold text-gray-900">{stats.availableBuilders}</p>
+                            <p className="text-xs font-medium text-gray-500">Available Builders</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.availableBuilders}</p>
                         </div>
                     </div>
                     <div 
                         onClick={() => navigate('/contracts')}
-                        className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-orange-400 hover:shadow-md transition-all group"
+                        className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 cursor-pointer hover:border-orange-400 hover:shadow-md transition-all group"
                     >
-                        <div className="bg-orange-50 p-3 rounded-lg group-hover:scale-110 transition-transform"><FileSignature className="h-6 w-6 text-orange-600" /></div>
+                        <div className="bg-orange-50 p-2.5 rounded-lg group-hover:scale-110 transition-transform"><FileSignature className="h-5 w-5 text-orange-600" /></div>
                         <div>
-                            <p className="text-sm font-medium text-gray-500">Pending Contracts</p>
-                            <p className="text-2xl font-semibold text-gray-900">{stats.pendingContracts}</p>
+                            <p className="text-xs font-medium text-gray-500">Pending Contracts</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.pendingContracts}</p>
                         </div>
                     </div>
                     <div 
                         onClick={() => navigate('/invoices')}
-                        className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex items-center gap-4 cursor-pointer hover:border-purple-400 hover:shadow-md transition-all group"
+                        className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 cursor-pointer hover:border-purple-400 hover:shadow-md transition-all group"
                     >
-                        <div className="bg-purple-50 p-3 rounded-lg group-hover:scale-110 transition-transform"><Receipt className="h-6 w-6 text-purple-600" /></div>
+                        <div className="bg-purple-50 p-2.5 rounded-lg group-hover:scale-110 transition-transform"><Receipt className="h-5 w-5 text-purple-600" /></div>
                         <div>
-                            <p className="text-sm font-medium text-gray-500">Unpaid Invoices</p>
-                            <p className="text-2xl font-semibold text-gray-900">{stats.unpaidInvoices}</p>
+                            <p className="text-xs font-medium text-gray-500">Unpaid Invoices</p>
+                            <p className="text-xl font-bold text-gray-900">{stats.unpaidInvoices}</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-7xl">
-                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm min-h-[350px] flex flex-col">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-7xl min-h-0">
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col min-h-0">
+                        <div className="flex items-center justify-between mb-2 shrink-0">
+                            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
                                 New Projects {chartWeekOffset === 0 ? '(Current 14 Days)' : `(Week -${chartWeekOffset * 2})`}
                             </h3>
                             <div className="flex items-center gap-1">
@@ -498,7 +558,7 @@ const Dashboard = () => {
                                 )}
                             </div>
                         </div>
-                        <div className="flex-1 w-full relative min-h-[250px]">
+                        <div className="flex-1 w-full relative min-h-0">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
@@ -524,17 +584,17 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm min-h-[350px] flex flex-col items-center">
-                        <h3 className="text-sm font-semibold mb-2 uppercase tracking-wider text-gray-500 w-full text-left">Project Breakdown</h3>
-                        <div className="flex-1 w-full relative flex items-center justify-center min-h-[250px]">
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col items-center min-h-0">
+                        <h3 className="text-xs font-bold mb-2 uppercase tracking-wider text-gray-400 w-full text-left shrink-0">Project Breakdown</h3>
+                        <div className="flex-1 w-full relative flex items-center justify-center min-h-0">
                             <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
+                                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                                     <Pie
                                         data={pieData}
                                         cx="50%"
                                         cy="50%"
                                         innerRadius={60}
-                                        outerRadius={100}
+                                        outerRadius={95}
                                         paddingAngle={2}
                                         dataKey="value"
                                         stroke="none"

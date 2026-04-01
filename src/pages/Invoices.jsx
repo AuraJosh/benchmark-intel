@@ -83,7 +83,12 @@ const Invoices = () => {
     };
 
     const closeInvoice = () => {
-        setSearchParams({});
+        const backTo = searchParams.get('backTo');
+        if (backTo) {
+            navigate(backTo);
+        } else {
+            setSearchParams({});
+        }
     };
 
     const calculateCommission = (quote) => {
@@ -457,11 +462,11 @@ const Invoices = () => {
                             <div>
                                 <h2 className="text-xl font-bold text-[#0f172a]">Invoice Schedule</h2>
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm mt-0.5">
-                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/projects?id=${selectedInvoice.projectId}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
+                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/projects?id=${selectedInvoice.projectId}&backTo=${encodeURIComponent(`/invoices?id=${selectedInvoice.id}`)}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
                                         <MapPin className="h-3.5 w-3.5" /> Project: {getProjectAddress(selectedInvoice.projectId)}
                                     </button>
                                     <span className="text-gray-300">|</span>
-                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/builders?id=${selectedInvoice.builderId}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
+                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/builders?id=${selectedInvoice.builderId}&backTo=${encodeURIComponent(`/invoices?id=${selectedInvoice.id}`)}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
                                         <Building className="h-3.5 w-3.5" /> Builder: {getBuilderName(selectedInvoice.builderId)}
                                     </button>
                                 </div>
