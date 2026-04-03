@@ -13,6 +13,7 @@ import Correspondence from './pages/Correspondence';
 import Captures from './pages/Captures';
 import ProtectedRoute from './components/ProtectedRoute';
 import Routing from './pages/Routing';
+import Finance from './pages/Finance';
 import { RecordingProvider } from './context/RecordingContext';
 
 function App() {
@@ -112,6 +113,14 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <PackWorkspace />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/finance"
+                    element={
+                        <ProtectedRoute>
+                            <Finance />
                         </ProtectedRoute>
                     }
                 />

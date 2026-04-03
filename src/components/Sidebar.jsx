@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Map as MapIcon, Users, LogOut, Loader2, Network, ClipboardList, LayoutDashboard, FileSignature, Receipt, MessageSquare, Package, X } from 'lucide-react';
+import { Home, Map as MapIcon, Users, LogOut, Loader2, Network, ClipboardList, LayoutDashboard, FileSignature, Receipt, MessageSquare, Package, X, TrendingUp } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import Logo from '../assets/LogoColoured.png';
@@ -20,6 +20,7 @@ const Sidebar = ({ onClose }) => {
         { label: 'Routing', icon: MapIcon, path: '/routing' },
         { label: 'Contracts', icon: FileSignature, path: '/contracts' },
         { label: 'Invoices', icon: Receipt, path: '/invoices' },
+        { label: 'Finance', icon: TrendingUp, path: '/finance' },
         { label: 'Correspondence', icon: MessageSquare, path: '/correspondence' },
         { label: 'Capture Logs', icon: ClipboardList, path: '/captures' },
     ];
