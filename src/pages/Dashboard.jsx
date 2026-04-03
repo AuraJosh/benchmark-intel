@@ -398,7 +398,7 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="w-full relative flex flex-col h-full overflow-hidden">
+        <div className="w-full relative flex flex-col h-full overflow-y-auto md:overflow-hidden">
             <header className="mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
@@ -419,7 +419,7 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden pb-4">
+            <div className="flex-1 flex flex-col min-h-0 w-full overflow-y-auto md:overflow-hidden pb-4">
                 <div className={`shrink-0 transition-all duration-500 ease-in-out ${showReminders && reminders.length > 0 ? 'opacity-100 mb-3 max-h-[300px]' : 'max-h-0 opacity-0 mb-0 overflow-hidden'}`}>
                      <div className="w-full max-w-7xl animate-fade-in">
                           <div className="flex items-center justify-between mb-4 px-1">
@@ -534,7 +534,7 @@ const Dashboard = () => {
                 </div>
 
                 <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 w-full max-w-7xl min-h-0">
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col min-h-0">
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col min-h-[350px] md:min-h-0">
                         <div className="flex items-center justify-between mb-2 shrink-0">
                             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
                                 New Projects {chartWeekOffset === 0 ? '(Current 14 Days)' : `(Week -${chartWeekOffset * 2})`}
@@ -584,7 +584,7 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col items-center min-h-0">
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col items-center min-h-[350px] md:min-h-0">
                         <h3 className="text-xs font-bold mb-2 uppercase tracking-wider text-gray-400 w-full text-left shrink-0">Project Breakdown</h3>
                         <div className="flex-1 w-full relative flex items-center justify-center min-h-0">
                             <ResponsiveContainer width="100%" height="100%">
