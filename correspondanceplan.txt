@@ -1,0 +1,72 @@
+# Correspondence Section implementation Plan
+
+## 1. Overview & Aesthetics
+The Correspondence section will serve as a central CRM-style hub for tracking all interactions with Homeowners (Projects) and Builders. 
+
+- **Primary Colors**: 
+  - Homeowner Theme: #142E4F (Deep Navy)
+  - Builder Theme: #1E406E (Steel Blue)
+- **Navigation**: Integrated into the main Sidebar with a "MessageSquare" or "Mail" icon.
+- **Layout**: A Master-Detail split-view.
+  - **Left Panel**: Filterable search and list of Projects/Builders.
+  - **Right Panel**: The active correspondence view (Details, Notes, Timeline).
+
+## 2. Core UI Components
+
+### A. The Master Toggle (Homeowner vs. Builder)
+- **Design**: A "Pill" style toggle with a sliding background animation (Framer Motion or CSS transitions).
+- **Behavior**: Switching the toggle resets the active selection and swaps the source data (Projects vs. Builders).
+
+### B. Homeowner Section (Project Search)
+- **Search Bar**: A dynamic filter. As the user types "14...", it queries the `projects` collection in Firestore.
+- **Selection**: Selecting a project "locks" it into the view.
+- **Header**: 
+  - Basic address/name.
+  - Link to "View Full Project Pack" (Navigates to `/workspace?id=...`).
+  - Link to the original Planning Portal URL.
+
+### C. Builder Section
+- **Builder List**: Automatically imports the full list from the `builders` collection.
+- **List Items**: Clean cards showing Company Name and primary contact.
+
+### D. The Correspondence Timeline
+- **Entry Types**: Email, Call, Message, Visit, Other.
+- **Design**: A vertical line with "beads" or cards.
+  - Recent entries at the top.
+  - Visual icons for each type.
+  - Date and time stamps.
+- **Expansion**: Clicking a timeline card opens a focused Modal/Sidebar containing the full body text/notes from that interaction.
+
+### E. Long-form Notes & Quick Entry
+- **Notes Tab**: A static "scratchpad" for that specific contact (different from chronological timeline entries).
+- **Quick Add**: A floating button or fixed bar at the bottom to "Log Interaction".
+
+## 3. Data Structure (Firebase)
+
+### `correspondence` Collection
+Each document will represent a single interaction:
+- `linkedId`: ID of the Project or Builder.
+- `type`: 'homeowner' | 'builder' 
+- `category`: 'email' | 'call' | 'message' | 'visit' | 'other'
+- `timestamp`: serverTimestamp()
+- `notes`: String/Text.
+- `metadata`: (Optional) duration of call, email subject, etc.
+
+## 4. Integration Points
+
+### `Projects.jsx` & `Builders.jsx`
+- **Action Button**: Add a "View Correspondence" button to the project/builder cards.
+- **Routing**: This button will navigate to `/correspondence?type=homeowner&id=[PROJECT_ID]`, which will auto-select that item on load.
+
+## 5. Development Steps
+1. **Model & State**: Setup the navigation and URL-based state management (so links work).
+2. **Toggle Component**: Build the custom animated switcher.
+3. **Filter Logic**: Implement the "type-to-filter" search for projects.
+4. **Timeline Component**: Create the visual timeline feeding from the Firestore `correspondence` collection.
+5. **Logging Modal**: Build the "Add Correspondence" form with type selectors.
+6. **Cross-Links**: Add the navigation buttons to existing pages.
+
+## 6. Essential "Pro" Features to Include
+- **Quick Filters**: Filter timeline by type (e.g., "Show only Calls").
+- **Next Step Reminder**: A small field at the top of each view to set a "Next Follow-up" date that highlights when overdue.
+- **Auto-Drafting**: Integration with the AI features to summarize long notes into a quick timeline snippet.

@@ -275,11 +275,11 @@ const Builders = () => {
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-4 font-medium">Company ID</th>
-                                <th className="px-6 py-4 font-medium">Name & Owner</th>
-                                <th className="px-6 py-4 font-medium">Contact</th>
-                                <th className="px-6 py-4 font-medium">Availability</th>
-                                <th className="px-6 py-4 font-medium text-right">Action</th>
+                                <th className="px-4 py-4 font-medium hidden sm:table-cell">Company ID</th>
+                                <th className="px-4 py-4 font-medium">Name & Owner</th>
+                                <th className="px-4 py-4 font-medium hidden md:table-cell">Contact</th>
+                                <th className="px-4 py-4 font-medium">Availability</th>
+                                <th className="px-4 py-4 font-medium text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
@@ -299,14 +299,14 @@ const Builders = () => {
                             ) : (
                                 filteredBuilders.map((builder) => (
                                     <tr key={builder.id} onClick={() => openBuilder(builder)} className="hover:bg-gray-50/50 cursor-pointer transition-colors group">
-                                        <td className="px-6 py-4 font-mono text-xs font-semibold text-[#0f172a]">
+                                        <td className="px-4 py-4 font-mono text-xs font-semibold text-[#0f172a] hidden sm:table-cell">
                                             {builder.companyId}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-4">
                                             <div className="font-medium text-[#0f172a]">{builder.companyName}</div>
                                             <div className="text-gray-500 flex items-center gap-1 mt-0.5"><User className="h-3 w-3" /> {builder.ownerName}</div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-4 hidden md:table-cell">
                                             <div className="flex items-center gap-2 text-gray-600 mb-1">
                                                 <Phone className="h-3 w-3" /> {builder.phone}
                                             </div>
@@ -314,7 +314,7 @@ const Builders = () => {
                                                 <Mail className="h-3 w-3" /> {builder.email}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-4">
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); toggleAvailability(builder.id, builder.availability); }}
                                                 className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${builder.availability ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100'}`}
@@ -322,9 +322,9 @@ const Builders = () => {
                                                 {builder.availability ? 'Available' : 'Unavailable'}
                                             </button>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-4 py-4 text-right">
                                             <button onClick={(e) => { e.stopPropagation(); openBuilder(builder); }} className="text-[#0284c7] hover:text-[#0369a1] font-semibold text-sm">
-                                                View Details
+                                                View
                                             </button>
                                         </td>
                                     </tr>

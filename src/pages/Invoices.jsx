@@ -319,11 +319,11 @@ const Invoices = () => {
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-4 font-medium">Project / Builder</th>
-                                <th className="px-6 py-4 font-medium text-right">Commission (3%)</th>
-                                <th className="px-6 py-4 font-medium">Status</th>
-                                <th className="px-6 py-4 font-medium">Next Due</th>
-                                <th className="px-6 py-4 font-medium text-right">Actions</th>
+                                <th className="px-4 py-4 font-medium">Project / Builder</th>
+                                <th className="px-4 py-4 font-medium text-right">Commission (3%)</th>
+                                <th className="px-4 py-4 font-medium">Status</th>
+                                <th className="px-4 py-4 font-medium hidden sm:table-cell">Next Due</th>
+                                <th className="px-4 py-4 font-medium text-right hidden md:table-cell">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
@@ -336,14 +336,14 @@ const Invoices = () => {
                                     const nextPayment = Object.entries(inv.payments).find(([k, v]) => v.status !== 'Paid');
                                     return (
                                         <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openInvoice(inv)}>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4">
                                                 <div className="font-medium text-[#0f172a]">{getProjectAddress(inv.projectId)}</div>
                                                 <div className="text-xs text-gray-500">{getBuilderName(inv.builderId)}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-right font-medium text-gray-900">
+                                            <td className="px-4 py-4 text-right font-medium text-gray-900">
                                                 £{inv.commissionTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4">
                                                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border ${inv.status === 'Paid' ? 'border-green-200 bg-green-50 text-green-700' :
                                                     inv.status === 'Partial' ? 'border-blue-200 bg-blue-50 text-blue-700' :
                                                         'border-orange-200 bg-orange-50 text-orange-700'
@@ -351,10 +351,10 @@ const Invoices = () => {
                                                     {inv.status}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-gray-500">
+                                            <td className="px-4 py-4 text-gray-500 hidden sm:table-cell">
                                                 {nextPayment ? (nextPayment[1].dueDate ? new Date(nextPayment[1].dueDate).toLocaleDateString() : 'On Completion') : 'Complete'}
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-4 py-4 text-right hidden md:table-cell">
                                                 <button className="text-[#0284c7] hover:text-[#0369a1] font-semibold text-sm">View Schedule</button>
                                             </td>
                                         </tr>

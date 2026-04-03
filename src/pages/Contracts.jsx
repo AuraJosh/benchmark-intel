@@ -436,10 +436,10 @@ const Contracts = () => {
                         <table className="w-full text-left text-sm text-gray-600">
                             <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                                 <tr>
-                                    <th className="px-6 py-4 font-medium">Builder</th>
-                                    <th className="px-6 py-4 font-medium">Version Issued</th>
-                                    <th className="px-6 py-4 font-medium text-center">Circulation Status</th>
-                                    <th className="px-6 py-4 font-medium text-right">Actions</th>
+                                    <th className="px-4 py-4 font-medium">Builder</th>
+                                    <th className="px-4 py-4 font-medium hidden sm:table-cell">Version Issued</th>
+                                    <th className="px-4 py-4 font-medium text-center">Status</th>
+                                    <th className="px-4 py-4 font-medium text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 bg-white">
@@ -454,25 +454,25 @@ const Contracts = () => {
                                 ) : (
                                     filteredAgreements.map(agreement => (
                                         <tr key={agreement.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openAgreement(agreement.id)}>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4">
                                                 {getBuilderName(agreement.builderId)}
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4 hidden sm:table-cell">
                                                 {getVersionTitle(agreement.versionId)}
                                                 <div className="text-[10px] text-gray-400 mt-0.5">Issued: {agreement.dateIssued ? new Date(agreement.dateIssued.toDate()).toLocaleDateString() : 'Just now'}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-center">
+                                            <td className="px-4 py-4 text-center">
                                                 {agreement.status === 'Signed' ? (
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border border-green-200 bg-green-50 text-green-700">
-                                                        <CheckCircle2 className="h-3.5 w-3.5" /> Signed
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium border border-green-200 bg-green-50 text-green-700">
+                                                        <CheckCircle2 className="h-3 w-3" /> Signed
                                                     </span>
                                                 ) : (
-                                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border border-orange-200 bg-orange-50 text-orange-700">
-                                                        <AlertCircle className="h-3.5 w-3.5" /> Pending
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium border border-orange-200 bg-orange-50 text-orange-700">
+                                                        <AlertCircle className="h-3 w-3" /> Pending
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                            <td className="px-4 py-4 text-right flex justify-end gap-2">
                                                 {agreement.status === 'Pending' ? (
                                                     <>
                                                         <button 
@@ -482,16 +482,16 @@ const Contracts = () => {
                                                                 navigator.clipboard.writeText(link);
                                                                 alert("Signing link copied to clipboard.");
                                                             }} 
-                                                            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                             title="Copy Signing Link"
                                                         >
-                                                            <Copy className="h-4 w-4" />
+                                                            <Copy className="h-3.5 w-3.5" />
                                                         </button>
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); openAgreement(agreement.id); }} 
-                                                            className="px-3 py-1.5 bg-[#0f172a] text-white rounded-lg text-xs font-bold hover:bg-black transition-colors"
+                                                            className="px-2 py-1 bg-[#0f172a] text-white rounded-lg text-[10px] sm:text-xs font-bold hover:bg-black transition-colors"
                                                         >
-                                                            Collect Signature
+                                                            Sign
                                                         </button>
                                                     </>
                                                 ) : (
@@ -501,14 +501,14 @@ const Contracts = () => {
                                                                 e.stopPropagation(); 
                                                                 handleDownloadPDF(agreement);
                                                             }} 
-                                                            className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                            className="p-1 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                                                             title="Download PDF"
                                                         >
-                                                            <Download className="h-4 w-4" />
+                                                            <Download className="h-3.5 w-3.5" />
                                                         </button>
                                                         <button 
                                                             onClick={(e) => { e.stopPropagation(); openAgreement(agreement.id); }} 
-                                                            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors"
+                                                            className="px-2 py-1 border border-gray-300 text-gray-700 rounded-lg text-[10px] sm:text-xs font-bold hover:bg-gray-50 transition-colors"
                                                         >
                                                             View
                                                         </button>

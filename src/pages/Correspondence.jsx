@@ -476,37 +476,43 @@ const DetailPanel = ({ contact, mode, theme, onClose }) => {
     return (
         <div className="flex flex-col h-full bg-white overflow-hidden">
             {/* Header */}
-            <div className="relative shrink-0 px-6 py-5 border-b border-gray-100">
-                <div className="flex justify-between items-center gap-4">
-                    <div className="min-w-0">
+            <div className="relative shrink-0 px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 bg-white">
+                <div className="flex justify-between items-start gap-4">
+                    <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1">
                             <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-gray-100 text-gray-500" style={{ color: theme.bg, backgroundColor: theme.bg + '15' }}>
                                 {mode === 'homeowner' ? 'Homeowner' : 'Builder'}
                             </span>
                         </div>
-                        <h2 className="text-[#0f172a] font-bold text-xl leading-tight truncate">{name}</h2>
+                        <h2 className="text-[#0f172a] font-bold text-lg sm:text-xl leading-tight truncate">{name}</h2>
                         {sub && name !== sub && <p className="text-gray-400 text-xs mt-0.5 truncate font-medium">{sub}</p>}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={onClose} className="h-9 w-9 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all shrink-0 hover:rotate-90"><X className="h-5.5 w-5.5" /></button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button 
+                            onClick={onClose} 
+                            className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-gray-100 sm:bg-gray-50 flex items-center justify-center text-gray-500 sm:text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-all hover:rotate-90 shadow-sm sm:shadow-none"
+                            aria-label="Close"
+                        >
+                            <X className="h-6 w-6 sm:h-5.5 sm:w-5.5" />
+                        </button>
                     </div>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-4">
+                <div className="flex flex-wrap gap-2 mt-4 sm:mt-5">
                     <button onClick={() => navigate(mode === 'homeowner' ? `/projects?id=${contact.id}` : `/builders?id=${contact.id}`)} 
-                        className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm hover:shadow-md active:scale-95" 
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-sm hover:shadow-md active:scale-95" 
                         style={{ background: theme.bg }}>
-                        View Profile
+                        Profile
                     </button>
                     <button onClick={() => setShowLog(true)} 
-                        className="flex items-center gap-1.5 bg-gray-50 text-[#0f172a] hover:bg-gray-100 border border-gray-200 text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all active:scale-95">
-                        <Plus className="h-3 w-3" /> Log
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-gray-50 text-[#0f172a] hover:bg-gray-100 border border-gray-200 text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95">
+                        <Plus className="h-3.5 w-3.5" /> Log
                     </button>
                     <button 
                         onClick={handleRecordClick} 
                         disabled={isRecording}
-                        className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all active:scale-95 border ${isRecordingThisContact ? 'bg-red-500 text-white border-transparent animate-pulse shadow-lg shadow-red-100' : 'bg-white text-[#0f172a] border-gray-200 hover:bg-gray-50 disabled:opacity-40'}`}
+                        className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl transition-all active:scale-95 border ${isRecordingThisContact ? 'bg-red-500 text-white border-transparent animate-pulse shadow-lg shadow-red-100' : 'bg-white text-[#0f172a] border-gray-200 hover:bg-gray-50 disabled:opacity-40'}`}
                     >
-                        <Mic className={`h-3 w-3 ${isRecordingThisContact ? 'text-white' : 'text-red-500'}`} />
+                        <Mic className={`h-3.5 w-3.5 ${isRecordingThisContact ? 'text-white' : 'text-red-500'}`} />
                         {isRecordingThisContact ? 'Live' : 'Record'}
                     </button>
                 </div>

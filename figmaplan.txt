@@ -1,0 +1,52 @@
+# Web App to Figma Automation Plan (Project Packs) - ZERO COST FOCUS
+
+This version of the plan is optimized to keep Firebase costs at exactly **£0.00** by performing all logic on the client-side (React) and avoiding unnecessary Cloud Function compute or paid cross-origin calls.
+
+## Step 1: Data Generation (Client-Side - Replaces Cloud Functions)
+
+Instead of a paid Cloud Function endpoint, we generate the Figma payload directly in the user's browser via React. This uses the existing Firebase SDK which is covered under the Spark (Free) plan.
+
+### 1.1 Local Payload Builder
+Add a "Figma Export" component to `PackWorkspace.jsx` that:
+1.  **Gathers Data:** Pulls the document fields (`customId`, `address`, `AI Summaries`) already loaded in the browser.
+2.  **Formats on the Fly:** Constructs the JSON object locally in the browser's memory.
+3.  **One-Click Clipboard:** Provides a "Copy for Figma" button that copies the stringified JSON to the user's clipboard.
+    - **Cost Benefit:** Eliminates Cloud Function execution costs, networking egress for the JSON itself, and database read/write costs for triggering the export.
+
+### 1.2 Image URL Handling (Free Egress)
+Use Firebase Storage's long-lived **Public Download URLs**.
+- **Existing Logic:** When you upload images to Firebase, you get a `downloadURL` (e.g., `https://firebasestorage.googleapis...`). These URLs can be accessed by the Figma plugin for free (within the Spark plan's 1GB/day bandwidth limit, which is more than enough for a few project packs).
+
+### 1.3 AI Summary Fields
+- **Modification:** Ensure the "AI Technical Summary" already stored in Firestore is structured during the *original* generation phase (which you are already running). This avoids "double-processing" costs.
+
+## Step 2: Figma Plugin (Private & Free)
+
+### 2.1 JSON Paste Input
+Instead of the plugin "fetching" from a URL (which might require a paid secure endpoint), the plugin will have a large text area to **Paste the JSON**.
+- **User Workflow:**
+  1. Click "Copy for Figma" on the Web App (Free).
+  2. Open Figma Plugin.
+  3. Paste JSON and click "Sync" (Free).
+
+### 2.2 Direct Image Fetching
+The Figma plugin will use standard `fetch()` to grab the public images from the Firebase Storage URLs provided in the JSON.
+- **Node logic:** The plugin traverses the document as before, replacing text and image fills locally within the Figma environment.
+
+## Step 3: Zero-Cost Implementation Workflow
+
+1.  **Phase 1 (Web UI):** Update the `ai_prompt.txt` to output JSON structure to avoid parsing logic.
+2.  **Phase 2 (Web UI):** Add the "Copy to Clipboard" export button in `PackWorkspace.jsx`.
+3.  **Phase 3 (Figma):** Build the plugin with a simple text-area for the JSON payload.
+4.  **Phase 4 (CORS Fix):** Configure Firebase Storage CORS (Essential for Image Sync).
+    - To allow Figma's browser environment to fetch images, you must enable CORS on your bucket (one-time fix via Google Cloud Console).
+    - **Method:** Create a `cors.json` file and apply it with `gsutil cors set cors.json gs://YOUR_BUCKET_NAME`.
+    - **Configuration snippet:** `[{"origin": ["*"], "method": ["GET"], "maxAgeSeconds": 3600}]`.
+5.  **Phase 5 (Testing):** Verify that image fetching works via public URLs without requiring private API keys or paid backend services.
+
+## Why this stays at £0:
+- **Hosting:** Using existing free tier (GitHub Pages/Firebase Spark).
+- **Functions:** No new Cloud Functions deployed; all logic moved to frontend.
+- **Database:** Standard reads covered by Spark plan (50k/day).
+- **Storage:** Standard egress covered by Spark plan (1GB/day).
+- **AI:** Re-uses the existing AI generation credit you are already using in the workspace.

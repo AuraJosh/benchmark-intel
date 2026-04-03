@@ -843,11 +843,11 @@ const Projects = () => {
                             <table className="w-full text-left text-sm text-gray-600">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                                     <tr>
-                                        <th className="px-6 py-4 w-10 text-center"><input type="checkbox" onChange={(e) => e.target.checked ? setSelectedRowIds(filteredProjects.map(p => p.id)) : setSelectedRowIds([])} checked={selectedRowIds.length === filteredProjects.length && filteredProjects.length > 0} className="rounded border-gray-300 text-[#0f172a] focus:ring-[#0f172a]" /></th>
-                                        <th className="px-6 py-4 font-medium">Address</th>
-                                        <th className="px-6 py-4 font-medium">Description</th>
-                                        <th className="px-6 py-4 font-medium w-32">Status</th>
-                                        <th className="px-6 py-4 font-medium w-32">Decided</th>
+                                        <th className="px-4 py-4 w-10 text-center"><input type="checkbox" onChange={(e) => e.target.checked ? setSelectedRowIds(filteredProjects.map(p => p.id)) : setSelectedRowIds([])} checked={selectedRowIds.length === filteredProjects.length && filteredProjects.length > 0} className="rounded border-gray-300 text-[#0f172a] focus:ring-[#0f172a]" /></th>
+                                        <th className="px-4 py-4 font-medium">Address</th>
+                                        <th className="px-4 py-4 font-medium hidden md:table-cell">Description</th>
+                                        <th className="px-4 py-4 font-medium w-32">Status</th>
+                                        <th className="px-4 py-4 font-medium w-32 hidden sm:table-cell">Decided</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 bg-white">
@@ -858,10 +858,10 @@ const Projects = () => {
                                     ) : (
                                         paginatedProjects.map((project) => (
                                             <tr key={project.id} onClick={() => openProject(project)} className={`hover:bg-gray-50/50 cursor-pointer transition-colors ${selectedRowIds.includes(project.id) ? 'bg-blue-50/30' : ''}`}>
-                                                <td className="px-6 py-4 text-center" onClick={(e) => { e.stopPropagation(); toggleRowSelect(e, project.id); }}>
+                                                <td className="px-4 py-4 text-center" onClick={(e) => { e.stopPropagation(); toggleRowSelect(e, project.id); }}>
                                                     <input type="checkbox" className="rounded border-gray-300 text-[#0f172a] focus:ring-[#0f172a]" checked={selectedRowIds.includes(project.id)} onChange={e => { }} />
                                                 </td>
-                                                <td className="px-6 py-4 font-medium text-[#0f172a]">
+                                                <td className="px-4 py-4 font-medium text-[#0f172a]">
                                                     {project.address}
                                                     <div className="flex flex-wrap gap-1 mt-1.5">
                                                         {project.collections && project.collections.map((col, i) => (
@@ -874,15 +874,15 @@ const Projects = () => {
                                                             <div className="text-[10px] text-gray-800 font-bold flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-300 shadow-sm w-fit" title="Project Pack ID">
                                                                 <FileText className="h-2.5 w-2.5" /> 
                                                                  {project.customId || generateCustomProjectId(project.address, project.reference, project.coordinates)}
-                                                            </div>
+                                                             </div>
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 truncate max-w-xs" title={project.description}>{project.description}</td>
-                                                <td className="px-6 py-4">
+                                                <td className="px-4 py-4 truncate max-w-xs hidden md:table-cell" title={project.description}>{project.description}</td>
+                                                <td className="px-4 py-4">
                                                     <StatusBadge status={project.status} />
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-gray-500">{project.dateDecided ? new Date(project.dateDecided).toLocaleDateString() : 'N/A'}</td>
+                                                <td className="px-4 py-4 whitespace-nowrap text-gray-500 hidden sm:table-cell">{project.dateDecided ? new Date(project.dateDecided).toLocaleDateString() : 'N/A'}</td>
                                             </tr>
                                         ))
                                     )}

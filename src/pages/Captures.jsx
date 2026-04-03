@@ -130,11 +130,11 @@ const Captures = () => {
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-4 font-medium">Homeowner</th>
-                                <th className="px-6 py-4 font-medium">Contact</th>
-                                <th className="px-6 py-4 font-medium">Project / Collections</th>
-                                <th className="px-6 py-4 font-medium">Captured</th>
-                                <th className="px-6 py-4 font-medium text-right">Action</th>
+                                <th className="px-4 py-4 font-medium">Homeowner</th>
+                                <th className="px-4 py-4 font-medium hidden md:table-cell">Contact</th>
+                                <th className="px-4 py-4 font-medium hidden sm:table-cell">Project / Collections</th>
+                                <th className="px-4 py-4 font-medium">Captured</th>
+                                <th className="px-4 py-4 font-medium text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
@@ -147,17 +147,17 @@ const Captures = () => {
                                     const project = projects[cap.projectId] || {};
                                     return (
                                         <tr key={cap.id} onClick={() => openCapture(cap)} className="hover:bg-gray-50/50 cursor-pointer transition-colors">
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4">
                                                 <div className="font-bold text-[#0f172a]">{cap.fullName}</div>
                                                 <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mt-0.5 flex items-center gap-1.5">
                                                     <MapPin className="h-3 w-3" /> {cap.address || project.address || 'Unknown'}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4 hidden md:table-cell">
                                                 <div className="flex items-center gap-1.5 text-xs text-gray-600"><Mail className="h-3 w-3 text-gray-400" /> {cap.email}</div>
                                                 <div className="flex items-center gap-1.5 text-xs text-gray-600 mt-1"><Phone className="h-3 w-3 text-gray-400" /> {cap.phone}</div>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4 hidden sm:table-cell">
                                                 <div className="text-xs font-medium text-gray-900 truncate max-w-[200px]">{project.address || 'N/A'}</div>
                                                 <div className="flex flex-wrap gap-1 mt-1.5">
                                                     {project.collections && project.collections.map((col, i) => (
@@ -166,11 +166,11 @@ const Captures = () => {
                                                     {!project.collections && <div className="text-[9px] text-gray-400 italic">No collections</div>}
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">
-                                                {cap.timestamp?.toDate ? cap.timestamp.toDate().toLocaleString() : 'Recently'}
+                                            <td className="px-4 py-4 whitespace-nowrap text-gray-500 text-xs">
+                                                {cap.timestamp?.toDate ? cap.timestamp.toDate().toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' }) : 'Recently'}
                                             </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <button className="text-blue-600 hover:text-blue-800 font-bold text-xs uppercase tracking-widest">Details</button>
+                                            <td className="px-4 py-4 text-right">
+                                                <button className="text-blue-600 hover:text-blue-800 font-extrabold text-xs">VIEW</button>
                                             </td>
                                         </tr>
                                     );

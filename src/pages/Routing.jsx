@@ -499,11 +499,11 @@ const Routing = () => {
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-4 font-medium">Date Created</th>
-                                <th className="px-6 py-4 font-medium">Assigned To</th>
-                                <th className="px-6 py-4 font-medium">Locations</th>
-                                <th className="px-6 py-4 font-medium">Status</th>
-                                <th className="px-6 py-4 font-medium text-right">Action</th>
+                                <th className="px-4 py-4 font-medium">Date</th>
+                                <th className="px-4 py-4 font-medium hidden sm:table-cell">Assigned To</th>
+                                <th className="px-4 py-4 font-medium">Locations</th>
+                                <th className="px-4 py-4 font-medium">Status</th>
+                                <th className="px-4 py-4 font-medium text-right hidden md:table-cell">Action</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
@@ -529,37 +529,39 @@ const Routing = () => {
                                         onClick={() => setSearchParams({ id: r.id })} 
                                         className={`hover:bg-gray-50/50 cursor-pointer transition-colors group ${r.completed ? 'bg-green-50/30' : ''}`}
                                     >
-                                        <td className="px-6 py-4 font-semibold text-[#0f172a] whitespace-nowrap text-sm">
+                                        <td className="px-4 py-4 font-semibold text-[#0f172a] whitespace-nowrap text-sm">
                                             <Calendar className="inline h-4 w-4 mr-2 text-blue-500" />
                                             {r.date ? new Date(r.date).toLocaleDateString() : 'No Date'}
+                                            {!r.assignedTo && <div className="sm:hidden text-[10px] text-gray-400 font-normal">Unassigned</div>}
+                                            {r.assignedTo && <div className="sm:hidden text-[10px] text-blue-600 font-bold">{r.assignedTo}</div>}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-4 hidden sm:table-cell">
                                             {r.assignedTo ? (
                                                 <span className="bg-gray-100 text-[#0f172a] px-2.5 py-1 rounded-md font-bold text-xs">
                                                     {r.assignedTo}
                                                 </span>
                                             ) : <span className="text-gray-400 text-xs italic">Unassigned</span>}
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-4">
                                             <div className="flex items-center gap-1.5 font-medium">
                                                 <MapIcon className="h-4 w-4 text-gray-400" />
                                                 {r.projectIds?.length || 0} stops
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-4 py-4">
                                             {r.completed ? (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                                                    <CheckCircle2 className="h-3.5 w-3.5" /> Completed
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] sm:text-xs font-bold bg-green-100 text-green-700">
+                                                    <CheckCircle2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> <span className="hidden sm:inline">Completed</span><span className="sm:hidden">Done</span>
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                                                    <Activity className="h-3.5 w-3.5" /> Active Route
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] sm:text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                                    <Activity className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> <span className="hidden sm:inline">Active Route</span><span className="sm:hidden">Active</span>
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-4 py-4 text-right hidden md:table-cell">
                                             <div className="flex items-center justify-end gap-3">
-                                                <button className="text-[#0284c7] hover:text-[#0369a1] font-semibold text-sm">View Route Details</button>
+                                                <button className="text-[#0284c7] hover:text-[#0369a1] font-semibold text-sm">View Details</button>
                                                 <button onClick={(e) => handleDeleteRoute(r.id, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100" title="Delete Route"><Trash2 className="h-4 w-4"/></button>
                                             </div>
                                         </td>
@@ -575,32 +577,33 @@ const Routing = () => {
             <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${selectedRoute ? 'translate-x-0' : 'translate-x-full'}`}>
                 {selectedRoute && (
                     <>
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                        <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 shrink-0 gap-4 sm:gap-0">
                             <div>
-                                <h3 className="text-xl font-bold text-[#0f172a] flex items-center gap-2">
+                                <h3 className="text-lg sm:text-xl font-bold text-[#0f172a] flex items-center gap-2">
                                      <Calendar className="h-5 w-5 text-blue-500" />
-                                     Route Summary: {selectedRoute.date ? new Date(selectedRoute.date).toLocaleDateString() : 'Unknown'}
+                                     Route: {selectedRoute.date ? new Date(selectedRoute.date).toLocaleDateString() : 'Unknown'}
                                 </h3>
-                                <p className="text-sm text-gray-500 mt-0.5">Configure and optimize your sequence</p>
+                                <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Configure and optimize your sequence</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => handleToggleComplete(selectedRoute.id, selectedRoute.completed)}
-                                    className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm transition-all border ${selectedRoute.completed ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                                >
-                                    <CheckCircle2 className={`h-4 w-4 ${selectedRoute.completed ? 'text-green-600' : 'text-gray-400'}`} />
-                                    {selectedRoute.completed ? 'Completed' : 'Mark Route Complete'}
-                                </button>
-                                <div className="h-8 w-px bg-gray-200 mx-1"></div>
-                                <a 
-                                    href={generateGoogleMapsUrl()}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-all"
-                                >
-                                    <Navigation className="h-4 w-4 text-white" /> Open in Google Maps
-                                </a>
-                                <div className="h-8 w-px bg-gray-200 mx-1"></div>
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleToggleComplete(selectedRoute.id, selectedRoute.completed)}
+                                        className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg shadow-sm transition-all border ${selectedRoute.completed ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                    >
+                                        <CheckCircle2 className={`h-4 w-4 ${selectedRoute.completed ? 'text-green-600' : 'text-gray-400'}`} />
+                                        <span className="hidden sm:inline">{selectedRoute.completed ? 'Completed' : 'Mark Complete'}</span>
+                                        <span className="sm:hidden">{selectedRoute.completed ? 'Done' : 'Complete'}</span>
+                                    </button>
+                                    <a 
+                                        href={generateGoogleMapsUrl()}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-all"
+                                    >
+                                        <Navigation className="h-4 w-4 text-white" /> <span className="hidden sm:inline">Open Maps</span><span className="sm:hidden">Maps</span>
+                                    </a>
+                                </div>
                                 <button onClick={() => setSearchParams({})} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
                                     <X className="h-6 w-6" />
                                 </button>

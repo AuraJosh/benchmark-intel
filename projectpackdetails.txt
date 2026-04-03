@@ -1,0 +1,167 @@
+# PROJECT-PACK-APPLICATION: FULL TECHNICAL SYSTEM BLUEPRINT
+============================================================
+
+This document provides a comprehensive, deep-dive into the entire architecture of the Project Pack Application. It includes the exact logic, Firebase configuration, code snippets, and reproduction steps for every core system component.
+
+---
+
+## 1. INFRASTRUCTURE & BACKEND (FIREBASE SETUP)
+
+### Key Firebase Services
+*   **Authentication**: Managed via email/password or Google Auth (handled in `Login.jsx`).
+*   **Firestore Database**: Centralized NoSQL database. 
+    *   **Core Collection**: `projects` (schema follows a `ProjectID` as the document ID).
+    *   **Global Settings**: `settings/global` storing `googleDriveFolderId`.
+*   **Cloud Storage**: Used for binary storage. 
+    *   **Base Path**: `projects/{slug}_{ProjectID}/documents/`
+*   **Cloud Functions**: Node.js 20 environment using the Gen 2 (`v2`) HTTPS triggers.
+*   **Vertex AI**: Integrated for `gemini-1.5-flash-002` and `gemini-2.5-flash` multimodal analysis.
+
+### System Configuration (`firebase.json`)
+```json
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "*.local"]
+    }
+  ]
+}
+```
+
+---
+
+## 2. PROJECT ID GENERATION LOGIC
+Located in: `src/utils/projectIds.js`
+
+The system generates a human-readable, searchable "Pack ID" using property context.
+
+**Reproduction Pattern:**
+1.  **Extract Postcode Prefix**: Matches standard UK postcodes and isolates the first segment (e.g., "YO24").
+2.  **Sector Identification**: Uses Latitude and Longitude to calculate a 3-letter grid code (e.g., `MKC` for Micklegate/Center).
+3.  **Reference Reversal**: Takes the numerical digits from the Planning Portal reference, reverses them, and formats them (e.g., `14670` becomes `076-41`).
+4.  **Type Mapping**: Append a digit based on application type (`FUL=1`, `LHE=2`, `OUT=3`).
+
+**Code Extraction:**
+```javascript
+export function generateCustomProjectId(address, portalRef, coordinates) {
+  const postcode = address.match(/[A-Z]{1,2}[0-9R][0-9A-Z]? [0-9][A-Z]{2}/i)[0].split(' ')[0].toUpperCase();
+  const numbersOnlyReversed = portalRef.replace(/[^0-9]/g, '').split('').reverse().join('');
+  // ... Coordinate sector mapping logic ...
+  return `${sectorID}-${postcode}-${formattedNumbers}-${typeDigit}`;
+}
+```
+
+---
+
+## 3. FILE UPLOAD & ZIP EXTRACTION PROCESS
+Located in: `functions/index.js` (`uploadToDrive` function)
+
+This function handles raw file uploads, ZIP extraction, and automatic database syncing.
+
+**Step-by-Step Logic:**
+1.  **Stream Parsing**: Uses `busboy` to process the multipart stream chunk-by-chunk to save memory.
+2.  **Temporary Storage**: Saves the incoming stream to `os.tmpdir()`.
+3.  **Archive Handling (AdmZip)**:
+    *   If the file is a `.zip`, it is loaded into the `AdmZip` library in memory.
+    *   It iterates through entries and filters for `.pdf`.
+    *   Extracted PDF buffers are saved directly to `admin.storage().bucket()`.
+4.  **Security Metadata**: Every file is uploaded with a `firebaseStorageDownloadTokens` UUID.
+5.  **Database Synchronization (The Sync Loop)**:
+    *   As files are saved, their names and direct download URLs are pushed into an array called `uploadedFiles`.
+    *   Before responding, the function executes a `FieldValue.arrayUnion()` to `Firestore`.
+
+**Refactored Logic Snippet:**
+```javascript
+// Inside busboy.on('finish', ...)
+for (const up of fileUploads) {
+  if (up.isZip) {
+    const zipEntries = new AdmZip(up.file).getEntries();
+    for (const entry of zipEntries) {
+      if (!entry.isDirectory && entry.entryName.toLowerCase().endsWith('.pdf')) {
+        const token = crypto.randomUUID();
+        await bucket.file(dest).save(entry.getData(), { metadata: { metadata: { firebaseStorageDownloadTokens: token }}});
+        uploadedFiles.push({ name: entry.name, url: generateUrl(dest, token) });
+      }
+    }
+  }
+}
+// Sync with Firestore
+await admin.firestore().collection('projects').doc(projectId).set({
+  projectFiles: admin.firestore.FieldValue.arrayUnion(...uploadedFiles),
+  lastUpdated: new Date().toISOString()
+}, { merge: true });
+```
+
+---
+
+## 4. AUTO-SCRAPING & GOOGLE DRIVE INTEGRATION
+Located in: `functions/index.js` (`createProjectWorkspace` function)
+
+This is the "Robot" that automates portal document retrieval into Google Drive.
+
+**The Workflow:**
+1.  **Browser Initialization**: Launches `puppeteer-core` with `@sparticuz/chromium`.
+2.  **Drive Hierarchy Creation**: Uses `googleapis` to find or create a standard folder structure:
+    `{Address} / Documents`
+    `{Address} / Previews`
+3.  **Portal Navigation**: Authenticates and navigates to the Document Tab of the York Planning Portal.
+4.  **DOM Scraping**: Injects a script into the headless page to find all `a.recaptcha-link` tags and maps their names to the document table's types/descriptions.
+5.  **Binary Proxy**: The browser downloads the PDF blobs locally, converts them to Base64, and the Cloud Function sends them to the Google Drive API.
+
+---
+
+## 5. PREVIEW ARCHITECTURE (PDF.JS CANVAS RENDERING)
+Located in: `src/components/PDFPreviewModal.jsx`
+
+This provides an HD, instant-view experience without downloading files.
+
+**The Technical Stack:**
+*   **Worker**: Uses `pdfjs-dist/build/pdf.worker.min.mjs` running in a Vite-url imported worker thread.
+*   **CORS Bypassing**: Adds a `&t={timestamp}` parameter to the Firebase URL during the `fetch()` call.
+*   **Rendering Process**:
+    1.  Fetch PDF as a `blob`.
+    2.  `pdfjsLib.getDocument({ url: blobUrl })`.
+    3.  Extract `page.getViewport({ scale: 2.0 })`.
+    4.  Establish an HTML5 `<canvas>`.
+    5.  Execute `page.render({ canvasContext, viewport })`.
+
+**Reproduction Snippet:**
+```javascript
+const canvas = canvasRef.current;
+const context = canvas.getContext('2d');
+const viewport = page.getViewport({ scale: 2.0 });
+canvas.height = viewport.height;
+canvas.width = viewport.width;
+await page.render({ canvasContext: context, viewport: viewport }).promise;
+```
+
+---
+
+## 6. MULTIMODAL AI ANALYSIS (VERTEX AI)
+Located in: `PackWorkspace.jsx` and `functions/index.js`
+
+**Logic Flow:**
+1.  **File Selection**: Sorts the project's `projectFiles` in Firestore to find those with names containing "plan" or "elevation".
+2.  **Input Assembly**: Limits input to the top 5 relevant files.
+3.  **Prompt Engineering**: Injects context (Address, Description, Status) and defines a "Technical Summary" persona.
+4.  **Generative Request**: Calls `gemini-2.5-flash` using GCS URIs (`gs://...`) for direct storage-to-AI throughput.
+
+---
+
+## 7. MAINTENANCE & DEPLOYMENT
+To replicate the backend environment:
+1.  **Install CLI**: `npm install -g firebase-tools`
+2.  **Auth**: `firebase login`
+3.  **Dependencies**: Run `npm install` in both the root and `/functions` directory.
+4.  **Deploy**: `firebase deploy --only functions`
+
+---
+
+## 8. SUMMARY OF STORAGE DATA LIFECYCLE
+1.  **Capture**: Scraper or Extension finds file links.
+2.  **Processing**: Cloud Function downloads binaries, unzips archives, and generates secure tokens.
+3.  **Storage**: Binaries saved to Firebase Storage; Metadata (Names, URLs) saved to Firestore `projectFiles` array.
+4.  **Display**: Frontend maps `projectFiles` and renders via `PDF.js` canvas.
+5.  **Output**: User copies Canvas Blob (Word) or URL String (External).
