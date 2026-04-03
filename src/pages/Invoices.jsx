@@ -476,20 +476,20 @@ const Invoices = () => {
             <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${selectedInvoice ? 'translate-x-0' : 'translate-x-full'}`}>
                 {selectedInvoice && (
                     <>
-                        <div className="px-6 py-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                        <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-start sm:items-center shrink-0">
                             <div>
-                                <h2 className="text-xl font-bold text-[#0f172a]">Invoice Schedule</h2>
-                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm mt-0.5">
-                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/projects?id=${selectedInvoice.projectId}&backTo=${encodeURIComponent(`/invoices?id=${selectedInvoice.id}`)}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
-                                        <MapPin className="h-3.5 w-3.5" /> Project: {getProjectAddress(selectedInvoice.projectId)}
+                                <h3 className="text-lg sm:text-xl font-bold text-[#0f172a]">Invoice Schedule</h3>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1 text-xs sm:text-sm mt-0.5">
+                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/projects?id=${selectedInvoice.projectId}&backTo=${encodeURIComponent(`/invoices?id=${selectedInvoice.id}`)}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium text-left">
+                                        <MapPin className="h-3.5 w-3.5 shrink-0" /> <span className="truncate max-w-[200px] sm:max-w-none">Project: {getProjectAddress(selectedInvoice.projectId)}</span>
                                     </button>
-                                    <span className="text-gray-300">|</span>
-                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/builders?id=${selectedInvoice.builderId}&backTo=${encodeURIComponent(`/invoices?id=${selectedInvoice.id}`)}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium">
-                                        <Building className="h-3.5 w-3.5" /> Builder: {getBuilderName(selectedInvoice.builderId)}
+                                    <span className="hidden sm:inline text-gray-300">|</span>
+                                    <button onClick={(e) => { e.stopPropagation(); navigate(`/builders?id=${selectedInvoice.builderId}&backTo=${encodeURIComponent(`/invoices?id=${selectedInvoice.id}`)}`); }} className="text-[#0284c7] hover:underline flex items-center gap-1 font-medium text-left">
+                                        <Building className="h-3.5 w-3.5 shrink-0" /> <span className="truncate max-w-[200px] sm:max-w-none">Builder: {getBuilderName(selectedInvoice.builderId)}</span>
                                     </button>
                                 </div>
                             </div>
-                            <button onClick={closeInvoice} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
+                            <button onClick={closeInvoice} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
                                 <X className="h-6 w-6" />
                             </button>
                         </div>

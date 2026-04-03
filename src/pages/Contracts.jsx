@@ -571,14 +571,14 @@ const Contracts = () => {
             <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${signingAgreement ? 'translate-x-0' : 'translate-x-full'}`}>
                     {signingAgreement && (
                         <>
-                            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                            <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-start sm:items-center shrink-0">
                                 <div>
-                                    <h2 className="text-lg font-semibold text-[#0f172a]">Collect Agreement Signature</h2>
-                                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                                    <h3 className="text-lg sm:text-xl font-bold text-[#0f172a]">Collect Agreement Signature</h3>
+                                    <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-500 font-medium mt-0.5">
                                         <span>For {getBuilderName(signingAgreement.builderId)}</span>
                                     </div>
                                 </div>
-                                <button onClick={closeAgreement} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
+                                <button onClick={closeAgreement} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
                                     <X className="h-6 w-6" />
                                 </button>
                             </div>
@@ -631,16 +631,16 @@ const Contracts = () => {
             <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${viewingAgreement ? 'translate-x-0' : 'translate-x-full'}`}>
                     {viewingAgreement && (
                         <>
-                            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                            <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-start sm:items-center shrink-0">
                                 <div>
-                                    <h2 className="text-lg font-semibold text-[#0f172a]">Executed Agreement</h2>
-                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm">
-                                        <p className="text-green-600 font-medium">Signed by {getBuilderName(viewingAgreement.builderId)}</p>
-                                        <span className="text-gray-300">|</span>
-                                        <p className="text-gray-500">{viewingAgreement.dateSigned ? new Date(viewingAgreement.dateSigned.toDate()).toLocaleString() : 'N/A'}</p>
+                                    <h3 className="text-lg sm:text-xl font-bold text-[#0f172a]">Executed Agreement</h3>
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1 text-xs sm:text-sm mt-0.5">
+                                        <p className="text-green-600 font-bold">Signed by {getBuilderName(viewingAgreement.builderId)}</p>
+                                        <span className="hidden sm:inline text-gray-300">|</span>
+                                        <p className="text-gray-500 font-medium">{viewingAgreement.dateSigned ? new Date(viewingAgreement.dateSigned.toDate()).toLocaleString() : 'N/A'}</p>
                                     </div>
                                 </div>
-                                <button onClick={closeAgreement} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
+                                <button onClick={closeAgreement} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
                                     <X className="h-6 w-6" />
                                 </button>
                             </div>

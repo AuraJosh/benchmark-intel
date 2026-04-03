@@ -339,12 +339,18 @@ const Builders = () => {
             <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${selectedBuilder ? 'translate-x-0' : 'translate-x-full'}`}>
                 {activeBuilder && (
                     <>
-                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
-                            <div>
-                                <h3 className="text-xl font-semibold text-[#0f172a]">{activeBuilder.companyName}</h3>
-                                <p className="text-sm text-gray-500">Builder Profile & Relational View</p>
+                        <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-100 flex flex-col bg-gray-50 shrink-0 gap-4">
+                            <div className="flex justify-between items-center w-full">
+                                <div>
+                                    <h3 className="text-lg sm:text-xl font-semibold text-[#0f172a]">{activeBuilder.companyName}</h3>
+                                    <p className="text-xs sm:text-sm text-gray-500">Builder Profile & Relational View</p>
+                                </div>
+                                <button onClick={closeBuilder} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
+                                    <X className="h-6 w-6" />
+                                </button>
                             </div>
-                            <div className="flex items-center gap-2">
+                            
+                            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto mini-scroll pb-1 sm:pb-0">
                                 <button
                                     onClick={() => {
                                         const path = hasCorrespondence
@@ -352,30 +358,25 @@ const Builders = () => {
                                             : '/correspondence';
                                         navigate(path);
                                     }}
-                                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-[#0f172a] text-white rounded-lg hover:bg-black shadow-sm transition-all"
+                                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-[#0f172a] text-white rounded-lg hover:bg-black shadow-sm transition-all shrink-0"
                                 >
                                     <MessageSquare className="h-4 w-4 text-blue-400" />
-                                    Correspondence
+                                    <span>Correspondence</span>
                                 </button>
-                                <div className="h-8 w-px bg-gray-200 mx-1"></div>
                                 <button
                                     onClick={() => archiveBuilder(activeBuilder.id, activeBuilder.status === 'Archive')}
                                     title={activeBuilder.status === 'Archive' ? "Unarchive Builder" : "Archive Builder"}
-                                    className={`p-2 rounded-lg transition-colors border border-transparent ${activeBuilder.status === 'Archive' ? 'text-green-600 hover:bg-green-50 hover:border-green-100' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-100'}`}
+                                    className={`p-2 rounded-lg transition-colors border shrink-0 ${activeBuilder.status === 'Archive' ? 'text-green-600 bg-green-50 border-green-100 hover:bg-green-100' : 'text-gray-400 bg-white border-gray-200 hover:text-amber-600 hover:bg-amber-50 hover:border-amber-100'}`}
                                 >
-                                    {activeBuilder.status === 'Archive' ? <Activity className="h-5 w-5" /> : <Archive className="h-5 w-5" />}
+                                    {activeBuilder.status === 'Archive' ? <Activity className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
                                 </button>
                                 <button
                                     onClick={() => deleteBuilder(activeBuilder.id)}
                                     disabled={isDeleting}
                                     title="Delete Builder"
-                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 disabled:opacity-50"
+                                    className="p-2 text-gray-400 bg-white border border-gray-200 hover:text-red-600 hover:bg-red-50 hover:border-red-100 rounded-lg transition-colors shrink-0 disabled:opacity-50"
                                 >
-                                    {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                                </button>
-                                <div className="h-8 w-px bg-gray-200 mx-1"></div>
-                                <button onClick={closeBuilder} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
-                                    <X className="h-6 w-6" />
+                                    {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 </button>
                             </div>
                         </div>

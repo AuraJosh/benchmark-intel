@@ -185,12 +185,12 @@ const Captures = () => {
             <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${selectedCapture ? 'translate-x-0' : 'translate-x-full'}`}>
                 {selectedCapture && (
                     <>
-                        <div className="px-6 py-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                        <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
                             <div>
-                                <h2 className="text-xl font-bold text-[#0f172a]">Capture Details</h2>
-                                <p className="text-xs text-gray-500 mt-0.5">ID: {selectedCapture.id}</p>
+                                <h3 className="text-lg sm:text-xl font-bold text-[#0f172a]">Capture Details</h3>
+                                <p className="text-xs sm:text-sm text-gray-500 mt-0.5 font-medium">ID: {selectedCapture.id}</p>
                             </div>
-                            <button onClick={closeCapture} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
+                            <button onClick={closeCapture} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
                                 <X className="h-6 w-6" />
                             </button>
                         </div>

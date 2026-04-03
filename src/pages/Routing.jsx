@@ -577,36 +577,36 @@ const Routing = () => {
             <div className={`absolute inset-0 z-[60] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${selectedRoute ? 'translate-x-0' : 'translate-x-full'}`}>
                 {selectedRoute && (
                     <>
-                        <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 shrink-0 gap-4 sm:gap-0">
-                            <div>
-                                <h3 className="text-lg sm:text-xl font-bold text-[#0f172a] flex items-center gap-2">
-                                     <Calendar className="h-5 w-5 text-blue-500" />
-                                     Route: {selectedRoute.date ? new Date(selectedRoute.date).toLocaleDateString() : 'Unknown'}
-                                </h3>
-                                <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Configure and optimize your sequence</p>
-                            </div>
-                            <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => handleToggleComplete(selectedRoute.id, selectedRoute.completed)}
-                                        className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg shadow-sm transition-all border ${selectedRoute.completed ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
-                                    >
-                                        <CheckCircle2 className={`h-4 w-4 ${selectedRoute.completed ? 'text-green-600' : 'text-gray-400'}`} />
-                                        <span className="hidden sm:inline">{selectedRoute.completed ? 'Completed' : 'Mark Complete'}</span>
-                                        <span className="sm:hidden">{selectedRoute.completed ? 'Done' : 'Complete'}</span>
-                                    </button>
-                                    <a 
-                                        href={generateGoogleMapsUrl()}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-all"
-                                    >
-                                        <Navigation className="h-4 w-4 text-white" /> <span className="hidden sm:inline">Open Maps</span><span className="sm:hidden">Maps</span>
-                                    </a>
+                        <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-100 flex flex-col bg-gray-50 shrink-0 gap-4">
+                            <div className="flex justify-between items-center w-full">
+                                <div>
+                                    <h3 className="text-lg sm:text-xl font-bold text-[#0f172a] flex items-center gap-2">
+                                         <Calendar className="h-5 w-5 text-blue-500" />
+                                         Route: {selectedRoute.date ? new Date(selectedRoute.date).toLocaleDateString() : 'Unknown'}
+                                    </h3>
+                                    <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Configure and optimize your sequence</p>
                                 </div>
-                                <button onClick={() => setSearchParams({})} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors">
+                                <button onClick={() => setSearchParams({})} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
                                     <X className="h-6 w-6" />
                                 </button>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto mini-scroll pb-1 sm:pb-0">
+                                <button
+                                    onClick={() => handleToggleComplete(selectedRoute.id, selectedRoute.completed)}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg shadow-sm transition-all border shrink-0 ${selectedRoute.completed ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+                                >
+                                    <CheckCircle2 className={`h-4 w-4 ${selectedRoute.completed ? 'text-green-600' : 'text-gray-400'}`} />
+                                    <span>{selectedRoute.completed ? 'Completed' : 'Mark Complete'}</span>
+                                </button>
+                                <a 
+                                    href={generateGoogleMapsUrl()}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-all shrink-0"
+                                >
+                                    <Navigation className="h-4 w-4 text-white" /> <span>Open in Maps</span>
+                                </a>
                             </div>
                         </div>
 
