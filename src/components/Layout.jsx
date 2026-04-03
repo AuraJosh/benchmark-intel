@@ -35,7 +35,7 @@ const Layout = ({ children }) => {
                         <span className="font-semibold text-[17px] truncate text-[#0f172a]">Benchmark Intel</span>
                     </Link>
                 </div>
-                <div className="flex-1 px-1 sm:px-4 md:px-8 pb-4 pt-2 md:pt-8 min-h-0 min-w-0 flex flex-col overflow-hidden relative">
+                <div className="p-4 md:p-8 flex-1 overflow-hidden flex flex-col min-h-0">
                     {children}
                 </div>
                 <AudioRecorder />

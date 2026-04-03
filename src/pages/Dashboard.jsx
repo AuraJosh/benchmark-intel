@@ -398,20 +398,20 @@ const Dashboard = () => {
     }
 
     return (
-        <div className="w-full max-w-full relative flex flex-col items-center h-full overflow-x-hidden overflow-y-auto md:overflow-hidden px-1">
-            <header className="w-full max-w-7xl mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
+        <div className="w-full relative flex flex-col h-full overflow-hidden">
+            <header className="mb-3 md:mb-4 flex flex-row items-center justify-between gap-2 shrink-0">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-[#0f172a]">Dashboard</h1>
+                    <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#0f172a]">Dashboard</h1>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                     {!showReminders && reminders.length > 0 && (
-                        <button onClick={() => setShowReminders(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-100 transition-all shadow-sm">
+                        <button onClick={() => setShowReminders(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-100 transition-all shadow-sm">
                             <Bell className="h-3.5 w-3.5" />
-                            Attention Widget ({reminders.length})
+                            <span className="hidden sm:inline">Attention Widget</span> ({reminders.length})
                         </button>
                     )}
                     {stats.lastScrapeTime && (
-                        <div className="bg-blue-50 text-blue-800 text-xs font-medium px-3 py-1.5 rounded-full border border-blue-200 shadow-sm flex items-center gap-2">
+                        <div className="hidden sm:flex bg-blue-50 text-blue-800 text-xs font-medium px-3 py-1.5 rounded-full border border-blue-200 shadow-sm items-center gap-2">
                             <Activity className="h-3.5 w-3.5" />
                             Last Scrape: {stats.lastScrapeTime.toLocaleString()}
                         </div>
@@ -419,7 +419,7 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            <div className="flex-1 flex flex-col min-h-0 w-full max-w-7xl overflow-x-hidden overflow-y-auto md:overflow-hidden pb-20">
+            <div className="flex-1 flex flex-col min-h-0 w-full overflow-y-auto md:overflow-hidden pb-4">
                 <div className={`shrink-0 transition-all duration-500 ease-in-out ${showReminders && reminders.length > 0 ? 'opacity-100 mb-3 max-h-[300px]' : 'max-h-0 opacity-0 mb-0 overflow-hidden'}`}>
                      <div className="w-full max-w-7xl animate-fade-in">
                           <div className="flex items-center justify-between mb-4 px-1">

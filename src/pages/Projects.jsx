@@ -690,43 +690,33 @@ const Projects = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight text-[#0f172a]">Projects</h1>
-                    <p className="mt-1.5 text-sm text-gray-500">Track and manage planning application leads.</p>
+            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+                <div className="min-w-0">
+                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Projects</h1>
+                    <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Track and manage planning application leads.</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex rounded-lg border border-gray-200 p-1 bg-gray-50/50 mr-2">
-                        <button onClick={() => navigate('/projects')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                            <List className="h-3.5 w-3.5" /> List
+                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                    <div className="flex rounded-lg border border-gray-200 p-0.5 md:p-1 bg-gray-50/50">
+                        <button onClick={() => navigate('/projects')} title="List View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                            <List className="h-3.5 w-3.5" /> <span className="hidden md:inline">List</span>
                         </button>
-                        <button onClick={() => navigate('/map')} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${viewMode === 'map' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                            <MapIcon className="h-3.5 w-3.5" /> Map
+                        <button onClick={() => navigate('/map')} title="Map View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'map' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                            <MapIcon className="h-3.5 w-3.5" /> <span className="hidden md:inline">Map</span>
                         </button>
                     </div>
                     {viewMode === 'map' && (
-                        <button
-                            onClick={toggleMapRouteMode}
-                            className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${
-                                mapRouteMode
-                                    ? 'bg-emerald-600 border-emerald-600 text-white shadow-inner'
-                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'
-                            }`}
-                        >
-                            <NavIcon className={`h-4 w-4 ${mapRouteMode ? 'text-white' : 'text-gray-400'}`} />
-                            {mapRouteMode ? `Route Mode (${mapSelectedIds.length} selected)` : 'Route Mode'}
+                        <button onClick={toggleMapRouteMode} title="Route Mode" className={`flex items-center gap-1 rounded-lg px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium transition-all border ${ mapRouteMode ? 'bg-emerald-600 border-emerald-600 text-white shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm' }`}>
+                            <NavIcon className={`h-3.5 w-3.5 md:h-4 md:w-4 ${mapRouteMode ? 'text-white' : 'text-gray-400'}`} />
+                            <span className="hidden md:inline">{mapRouteMode ? `Route Mode (${mapSelectedIds.length} selected)` : 'Route Mode'}</span>
                         </button>
                     )}
-                    <button
-                        onClick={() => setShowArchive(!showArchive)}
-                        className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${showArchive ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
-                    >
-                        <Archive className={`h-4 w-4 ${showArchive ? 'text-amber-500' : 'text-gray-400'}`} />
-                        {showArchive ? 'Showing Archive' : 'View Archive'}
+                    <button onClick={() => setShowArchive(!showArchive)} title={showArchive ? 'Showing Archive' : 'View Archive'} className={`flex items-center gap-1 rounded-lg px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium transition-all border ${showArchive ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}>
+                        <Archive className={`h-3.5 w-3.5 md:h-4 md:w-4 ${showArchive ? 'text-amber-500' : 'text-gray-400'}`} />
+                        <span className="hidden md:inline">{showArchive ? 'Showing Archive' : 'View Archive'}</span>
                     </button>
-                    <button onClick={() => setShowSyncModal(true)} disabled={syncing} className="flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-black disabled:opacity-50">
-                        {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4 text-blue-400" />}
-                        {syncing ? 'Scraping...' : 'Sync Data'}
+                    <button onClick={() => setShowSyncModal(true)} disabled={syncing} title="Sync Data" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-all hover:bg-black disabled:opacity-50">
+                        {syncing ? <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" /> : <Activity className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-400" />}
+                        <span className="hidden md:inline">{syncing ? 'Scraping...' : 'Sync Data'}</span>
                     </button>
                 </div>
             </header>

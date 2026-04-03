@@ -372,31 +372,19 @@ const Contracts = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight">Contracts</h1>
-                    <p className="mt-2 text-sm text-gray-500">Manage contract versions and builder signatures.</p>
+            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+                <div className="min-w-0">
+                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Contracts</h1>
+                    <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Manage contract versions and builder signatures.</p>
                 </div>
-                <div className="flex gap-3">
-                    <button
-                        onClick={() => setShowNewVersion(true)}
-                        className="flex items-center gap-2 rounded-lg bg-white border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-                    >
-                        <Plus className="h-4 w-4" />
-                        New Version
+                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                    <button onClick={() => setShowNewVersion(true)} title="New Version" className="flex items-center gap-1 rounded-lg bg-white border border-gray-300 px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50">
+                        <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                        <span className="hidden md:inline">New Version</span>
                     </button>
-                    <button
-                        onClick={() => {
-                            if (versions.length === 0) {
-                                alert("Please create a contract version first.");
-                                return;
-                            }
-                            setShowNewAgreement(true);
-                        }}
-                        className="flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-black"
-                    >
-                        <FileSignature className="h-4 w-4" />
-                        Issue Agreement
+                    <button onClick={() => { if (versions.length === 0) { alert('Please create a contract version first.'); return; } setShowNewAgreement(true); }} title="Issue Agreement" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-colors hover:bg-black">
+                        <FileSignature className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                        <span className="hidden md:inline">Issue Agreement</span>
                     </button>
                 </div>
             </header>

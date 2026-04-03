@@ -234,25 +234,19 @@ const Builders = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight">Builders</h1>
-                    <p className="mt-2 text-sm text-gray-500">Manage your network of trusted tradespeople.</p>
+            <header className="mb-3 md:mb-8 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+                <div className="min-w-0">
+                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Builders</h1>
+                    <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Manage your network of trusted tradespeople.</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        onClick={() => setShowArchive(!showArchive)}
-                        className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${showArchive ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
-                    >
-                        <Archive className={`h-4 w-4 ${showArchive ? 'text-amber-500' : 'text-gray-400'}`} />
-                        {showArchive ? 'Showing Archive' : 'View Archive'}
+                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                    <button onClick={() => setShowArchive(!showArchive)} title={showArchive ? 'Showing Archive' : 'View Archive'} className={`flex items-center gap-1 rounded-lg px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium transition-all border ${showArchive ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}>
+                        <Archive className={`h-3.5 w-3.5 md:h-4 md:w-4 ${showArchive ? 'text-amber-500' : 'text-gray-400'}`} />
+                        <span className="hidden md:inline">{showArchive ? 'Showing Archive' : 'View Archive'}</span>
                     </button>
-                    <button
-                        onClick={openAddBuilder}
-                        className="flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-black"
-                    >
-                        <UserPlus className="h-4 w-4" />
-                        Add Builder
+                    <button onClick={openAddBuilder} title="Add Builder" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-colors hover:bg-black">
+                        <UserPlus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                        <span className="hidden md:inline">Add Builder</span>
                     </button>
                 </div>
             </header>

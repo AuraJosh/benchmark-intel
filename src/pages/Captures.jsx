@@ -82,20 +82,15 @@ const Captures = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight text-[#0f172a]">Capture Logs</h1>
-                    <p className="mt-1.5 text-sm text-gray-500">History of homeowner details captured via the public form.</p>
+            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+                <div className="min-w-0">
+                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Capture Logs</h1>
+                    <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">History of homeowner details captured via the public form.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <a
-                        href="/#/capture"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-black"
-                    >
-                        <ExternalLink className="h-4 w-4" />
-                        Open Public Form
+                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                    <a href="/#/capture" target="_blank" rel="noopener noreferrer" title="Open Public Form" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-all hover:bg-black">
+                        <ExternalLink className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                        <span className="hidden md:inline">Open Public Form</span>
                     </a>
                 </div>
             </header>

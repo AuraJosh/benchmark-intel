@@ -279,17 +279,14 @@ const Invoices = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight">Invoices</h1>
-                    <p className="mt-2 text-sm text-gray-500">Automated 40/40/20 splits and late commission tracking.</p>
+            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+                <div className="min-w-0">
+                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Invoices</h1>
+                    <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Automated 40/40/20 splits and late commission tracking.</p>
                 </div>
-                <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="flex items-center gap-2 rounded-lg bg-[#0f172a] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-black"
-                >
-                    <Plus className="h-4 w-4" />
-                    New Invoice
+                <button onClick={() => setShowCreateModal(true)} title="New Invoice" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-colors hover:bg-black shrink-0">
+                    <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    <span className="hidden md:inline">New Invoice</span>
                 </button>
             </header>
 
