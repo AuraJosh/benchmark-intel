@@ -419,7 +419,7 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            <div className="flex-1 flex flex-col min-h-0 w-full overflow-y-auto md:overflow-hidden pb-4">
+            <div className="flex-1 flex flex-col min-h-0 w-full overflow-x-hidden overflow-y-auto md:overflow-hidden pb-4">
                 <div className={`shrink-0 transition-all duration-500 ease-in-out ${showReminders && reminders.length > 0 ? 'opacity-100 mb-3 max-h-[300px]' : 'max-h-0 opacity-0 mb-0 overflow-hidden'}`}>
                      <div className="w-full max-w-7xl animate-fade-in">
                           <div className="flex items-center justify-between mb-4 px-1">
@@ -537,7 +537,14 @@ const Dashboard = () => {
                     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col min-h-[350px] md:min-h-0">
                         <div className="flex items-center justify-between mb-2 shrink-0">
                             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                                New Projects {chartWeekOffset === 0 ? '(Current 14 Days)' : `(Week -${chartWeekOffset * 2})`}
+                                New Projects {(() => {
+                                    const end = new Date();
+                                    end.setDate(end.getDate() - (chartWeekOffset * 14));
+                                    const start = new Date(end);
+                                    start.setDate(start.getDate() - 13);
+                                    const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                                    return chartWeekOffset === 0 ? '(Current 14 Days)' : `(w/c ${fmt(start)})`;
+                                })()}
                             </h3>
                             <div className="flex items-center gap-1">
                                 <button 
