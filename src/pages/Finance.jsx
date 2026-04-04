@@ -101,10 +101,12 @@ const StatCard = ({ label, value, icon: Icon, color, sub }) => (
 // ──────────────────────────────────────────────
 const CategoryBadge = ({ label, type }) => {
     const color =
-        type === 'income'
+        type === 'revenue'
             ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-            : type === 'outgoing'
+            : type === 'expense'
             ? 'bg-red-50 text-red-700 border-red-200'
+            : type === 'dividend'
+            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
             : 'bg-purple-50 text-purple-700 border-purple-200';
     return (
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${color}`}>
@@ -143,7 +145,7 @@ const Finance = () => {
 
     // Modals
     const [showAddModal, setShowAddModal] = useState(false);
-    const [addType, setAddType] = useState('income'); // 'income' | 'outgoing' | 'wage'
+    const [addType, setAddType] = useState('revenue'); // 'revenue' | 'expense' | 'wage' | 'dividend'
     const [editItem, setEditItem] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
 
