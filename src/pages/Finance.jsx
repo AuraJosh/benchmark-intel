@@ -139,6 +139,7 @@ const Finance = () => {
     const [search, setSearch] = useState('');
     const [filterMonth, setFilterMonth] = useState(''); // '' = all
     const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
+    const [filterTaxYear, setFilterTaxYear] = useState('2026'); // April 2026 - April 2027
 
     // Modals
     const [showAddModal, setShowAddModal] = useState(false);
@@ -210,24 +211,27 @@ const Finance = () => {
         html2pdf().set(opt).from(content).save();
     };
 
-    // ── Firestore subscriptions ──
     useEffect(() => {
         const unsub1 = onSnapshot(
-            query(collection(db, 'fin_income'), orderBy('date', 'desc')),
-            (snap) => setIncomes(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+            query(collection(db, 'fin_revenue'), orderBy('date', 'desc')),
+            (snap) => setRevenue(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
         );
         const unsub2 = onSnapshot(
-            query(collection(db, 'fin_outgoings'), orderBy('date', 'desc')),
-            (snap) => setOutgoings(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+            query(collection(db, 'fin_expenses'), orderBy('date', 'desc')),
+            (snap) => setExpenses(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
         );
         const unsub3 = onSnapshot(
             query(collection(db, 'fin_wages'), orderBy('date', 'desc')),
+            (snap) => setWages(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        );
+        const unsub4 = onSnapshot(
+            query(collection(db, 'fin_dividends'), orderBy('date', 'desc')),
             (snap) => {
-                setWages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+                setDividends(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
                 setLoading(false);
             }
         );
-        return () => { unsub1(); unsub2(); unsub3(); };
+        return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
     }, []);
 
     // ── Open add modal ──
