@@ -156,9 +156,15 @@ const Finance = () => {
         category: '',
         date: new Date().toISOString().slice(0, 10),
         notes: '',
-        // wages only
+        // wages specific
         staffName: '',
         wageType: 'Salary',
+        // dividends specific
+        shareholder: '',
+        dividendType: 'Interim',
+        // expenses specific
+        nominalCode: '',
+        isFixedAsset: false,
     };
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
@@ -241,10 +247,21 @@ const Finance = () => {
         setAddType(type);
         setEditItem(null);
         let cat = '';
+        let nom = '';
         if (type === 'revenue') cat = REVENUE_CATEGORIES[0];
-        if (type === 'expense') cat = EXPENSE_CATEGORIES[0].label;
+        if (type === 'expense') {
+            cat = EXPENSE_CATEGORIES[0].label;
+            nom = EXPENSE_CATEGORIES[0].code;
+        }
         if (type === 'dividend') cat = 'Interim';
-        setForm({ ...emptyForm, category: cat, wageType: type === 'wage' ? 'Salary' : '' });
+        
+        setForm({ 
+            ...emptyForm, 
+            category: cat, 
+            nominalCode: nom,
+            wageType: type === 'wage' ? 'Salary' : '',
+            dividendType: type === 'dividend' ? 'Interim' : ''
+        });
         setShowAddModal(true);
     };
 
@@ -904,7 +921,15 @@ const Finance = () => {
                                     ) : (
                                         <select
                                             value={form.category}
-                                            onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                                            onChange={(e) => {
+                                                const newCat = e.target.value;
+                                                const catObj = addType === 'expense' ? EXPENSE_CATEGORIES.find(c => c.label === newCat) : null;
+                                                setForm((p) => ({ 
+                                                    ...p, 
+                                                    category: newCat,
+                                                    nominalCode: catObj ? catObj.code : p.nominalCode
+                                                }));
+                                            }}
                                             className={inputCls}
                                         >
                                             {(addType === 'revenue' ? REVENUE_CATEGORIES : EXPENSE_CATEGORIES.map(c => c.label)).map((c) => (
