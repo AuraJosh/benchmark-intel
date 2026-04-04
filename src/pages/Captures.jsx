@@ -88,7 +88,7 @@ const Captures = () => {
                     <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">History of homeowner details captured via the public form.</p>
                 </div>
                 <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
-                    <a href="/#/capture" target="_blank" rel="noopener noreferrer" title="Open Public Form" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-all hover:bg-black">
+                    <a href={`${window.location.origin}${window.location.pathname}#/capture`} target="_blank" rel="noopener noreferrer" title="Open Public Form" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-all hover:bg-black">
                         <ExternalLink className="h-3.5 w-3.5 md:h-4 md:w-4" />
                         <span className="hidden md:inline">Open Public Form</span>
                     </a>

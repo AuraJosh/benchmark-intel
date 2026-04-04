@@ -1140,7 +1140,7 @@ const Projects = () => {
                                                 View All Logs
                                             </button>
                                             <a
-                                                href={`#/capture?id=${activeProject.id}`}
+                                                href={`${window.location.origin}${window.location.pathname}#/capture?id=${activeProject.id}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5 shadow-sm"
