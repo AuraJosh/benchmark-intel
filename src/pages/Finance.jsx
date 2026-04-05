@@ -881,29 +881,33 @@ const Finance = () => {
                         <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center shrink-0 ${
                             selectedItem.type === 'revenue' ? 'bg-emerald-50' : selectedItem.type === 'expense' ? 'bg-red-50' : selectedItem.type === 'dividend' ? 'bg-indigo-50' : 'bg-purple-50'
                         }`}>
-                            <div className="flex items-center gap-3">
-                                <button onClick={closeView} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 hover:bg-white/50 rounded-full transition-colors">
-                                    <X className="h-6 w-6" />
-                                </button>
+                            <div className="flex items-center gap-4">
                                 <div>
                                     <h3 className="text-lg font-bold text-[#0f172a] capitalize">{selectedItem.type} Details</h3>
-                                    <p className="text-xs text-gray-500 font-medium">Record ID: {selectedItem.item.id.slice(-8).toUpperCase()}</p>
+                                    <div className="flex items-center gap-3">
+                                        <p className="text-xs text-gray-500 font-medium tracking-tight">Record ID: {selectedItem.item.id.slice(-8).toUpperCase()}</p>
+                                        <div className="flex items-center gap-1.5 border-l border-gray-300 pl-3">
+                                            <button 
+                                                onClick={() => { const itm = selectedItem.item; const tp = selectedItem.type; closeView(); openEdit(itm, tp); }}
+                                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-white rounded-md transition-all"
+                                                title="Edit Record"
+                                            >
+                                                <Edit2 className="h-4 w-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => { const itm = selectedItem.item; const tp = selectedItem.type; closeView(); setDeleteTarget({ ...itm, type: tp }); }}
+                                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-white rounded-md transition-all"
+                                                title="Delete Record"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <button 
-                                    onClick={() => { const itm = selectedItem.item; const tp = selectedItem.type; closeView(); openEdit(itm, tp); }}
-                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-full shadow-sm ring-1 ring-gray-200"
-                                >
-                                    <Edit2 className="h-5 w-5" />
-                                </button>
-                                <button 
-                                    onClick={() => { const itm = selectedItem.item; const tp = selectedItem.type; closeView(); setDeleteTarget({ ...itm, type: tp }); }}
-                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-full shadow-sm ring-1 ring-gray-200"
-                                >
-                                    <Trash2 className="h-5 w-5" />
-                                </button>
-                            </div>
+                            <button onClick={closeView} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-white rounded-full transition-colors shadow-sm ring-1 ring-gray-100">
+                                <X className="h-6 w-6" />
+                            </button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-gray-50/30">
