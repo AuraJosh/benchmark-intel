@@ -193,32 +193,51 @@ export async function runScraper(targetWeekOverride = null) {
                     console.warn(`  Navigation err for summary table on ${keyVal}`);
                 }
 
-                // --- UPDATED: More robust check for Refusal ---
-                // Give the table an extra moment to fully stream in (York's portal is slow)
-                await sleep(2000);
+                // --- NUCLEAR OPTION: Wait and scan the ENTIRE page for refusal keywords ---
+                await sleep(3000); // Give York's slow portal 3 full seconds
+                
+                // 1. Get the entire text content of the page as a human would see it
+                const pageText = await mainPage.evaluate(() => document.body.innerText).catch(() => "");
+                const lowerPageText = pageText.toLowerCase();
+                
+                // 2. Build the fields object as before for specific mapping
                 summaryHtml = await mainPage.content();
                 const $s = cheerio.load(summaryHtml);
                 const summaryFields = {};
-                $s('#simpleDetailsTable tr').each((_, row) => {
+                $s('table tr').each((_, row) => {
                     const th = $s(row).find('th').text().replace(/:/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
                     const td = $s(row).find('td').text().replace(/\s+/g, ' ').trim();
                     if (th && td) summaryFields[th] = td;
                 });
 
-                // Scan ALL fields (not just 'decision') for refusal keywords just in case labeling varies
+                // 3. Perform a triple-check for refusal
                 let isRefusal = false;
-                let foundDecision = 'None';
+                let reason = '';
+
+                // Check 1: Scanned fields
                 Object.entries(summaryFields).forEach(([k, v]) => {
                     const val = v.toLowerCase();
                     if ((k.includes('decision') || k.includes('status')) && (val.includes('refuse') || val.includes('refusal'))) {
                         isRefusal = true;
-                        foundDecision = v;
+                        reason = `Table Field [${k}]: ${v}`;
                     }
                 });
 
+                // Check 2: Global page text (catches badges, banners, and dynamic text)
+                if (!isRefusal) {
+                    const refusalKeywords = ['refuse permission', 'householder refusal', 'application refused', 'refused permission', 'refusal of certificate'];
+                    for (const kw of refusalKeywords) {
+                        if (lowerPageText.includes(kw)) {
+                            isRefusal = true;
+                            reason = `Global Page Text: Found "${kw}"`;
+                            break;
+                        }
+                    }
+                }
+
                 if (isRefusal) {
-                    console.log(`[${keyVal}] SKIPPING REFUSAL: Found "${foundDecision}" in fields.`);
-                    // Navigate back to results page
+                    console.log(`[${keyVal}] >>> SKIPPING REFUSAL: ${reason}`);
+                    // Safe navigation back
                     const backUrl = $s('a:contains("search results")').attr('href');
                     if (backUrl) {
                         await mainPage.goto('https://planningaccess.york.gov.uk' + backUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
