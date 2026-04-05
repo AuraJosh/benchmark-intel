@@ -292,6 +292,16 @@ const Finance = () => {
         return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
     }, []);
 
+    // ── Prevent Background Scroll when Modal is Open ──
+    useEffect(() => {
+        if (showAddModal || deleteTarget) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; };
+    }, [showAddModal, deleteTarget]);
+
     // ── Open add modal ──
     const openAdd = (type) => {
         setAddType(type);
@@ -959,11 +969,13 @@ const Finance = () => {
                                         placeholder="0.00"
                                     />
                                 </div>
-                                {addType === 'dividend' && parseFloat(form.amount) > stats.distributableProfit && (
-                                    <p className="mt-1 text-[10px] text-red-500 font-bold flex items-center gap-1">
-                                        <AlertCircle className="h-3 w-3" /> Exceeds Distributable Profits ({fmt(stats.distributableProfit)})
-                                    </p>
-                                )}
+                                <div className="h-4"> {/* Reserved space for warning to prevent drift */}
+                                    {addType === 'dividend' && parseFloat(form.amount) > stats.distributableProfit && (
+                                        <p className="mt-1 text-[10px] text-red-500 font-bold flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                            <AlertCircle className="h-3 w-3" /> Exceeds Distributable Profits ({fmt(stats.distributableProfit)})
+                                        </p>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Date */}
