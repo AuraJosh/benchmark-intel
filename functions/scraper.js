@@ -162,10 +162,13 @@ export async function runScraper(targetWeekOverride = null) {
                     return { desc, addr, href };
                 }, i);
 
-                let isExtension = false;
-                if (appInfo.desc.toLowerCase().includes('extension')) isExtension = true;
+                let isRelevant = false;
+                const lowerDesc = appInfo.desc.toLowerCase();
+                if (lowerDesc.includes('extension') || lowerDesc.includes('conversion')) {
+                    isRelevant = true;
+                }
 
-                if (!isExtension) {
+                if (!isRelevant) {
                     continue; // Skip without navigating
                 }
 
@@ -196,6 +199,31 @@ export async function runScraper(targetWeekOverride = null) {
                     summaryHtml = await mainPage.content();
                 } catch (err) {
                     console.warn(`  Timeout waiting for summary table for ${keyVal}`);
+                }
+
+                // --- NEW: Early check for Refusal to avoid unnecessary tab clicking ---
+                const $s = cheerio.load(summaryHtml);
+                const summaryFields = {};
+                $s('#simpleDetailsTable tr').each((_, row) => {
+                    const th = $s(row).find('th').text().replace(/:/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+                    const td = $s(row).find('td').text().replace(/\s+/g, ' ').trim();
+                    if (th && td) summaryFields[th] = td;
+                });
+
+                const decision = (summaryFields['decision'] || '').toLowerCase();
+                if (decision.includes('refuse') || decision.includes('refusal')) {
+                    console.log(`[${keyVal}] Skipping: Application was refused (${decision})`);
+                    // We still need to go back to results page
+                    await sleep(1000);
+                    const backUrl = $s('a:contains("search results")').attr('href');
+                    if (backUrl) {
+                        await mainPage.goto('https://planningaccess.york.gov.uk' + backUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
+                    } else {
+                        await mainPage.goBack().catch(() => { });
+                        await mainPage.goBack().catch(() => { });
+                    }
+                    await mainPage.waitForSelector('#searchresults', { timeout: 15000 });
+                    continue; 
                 }
 
                 console.log(`[${keyVal}] Clicking further-info tab...`);
