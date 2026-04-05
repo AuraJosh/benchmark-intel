@@ -193,15 +193,10 @@ export async function runScraper(targetWeekOverride = null) {
                     console.warn(`  Navigation err for summary table on ${keyVal}`);
                 }
 
-                let summaryHtml = '';
-                try {
-                    await mainPage.waitForSelector('table tr', { timeout: 15000 });
-                    summaryHtml = await mainPage.content();
-                } catch (err) {
-                    console.warn(`  Timeout waiting for summary table for ${keyVal}`);
-                }
-
-                // --- NEW: Early check for Refusal to avoid unnecessary tab clicking ---
+                // --- UPDATED: More robust check for Refusal ---
+                // Give the table an extra moment to fully stream in (York's portal is slow)
+                await sleep(2000);
+                summaryHtml = await mainPage.content();
                 const $s = cheerio.load(summaryHtml);
                 const summaryFields = {};
                 $s('#simpleDetailsTable tr').each((_, row) => {
@@ -210,11 +205,20 @@ export async function runScraper(targetWeekOverride = null) {
                     if (th && td) summaryFields[th] = td;
                 });
 
-                const decision = (summaryFields['decision'] || '').toLowerCase();
-                if (decision.includes('refuse') || decision.includes('refusal')) {
-                    console.log(`[${keyVal}] Skipping: Application was refused (${decision})`);
-                    // We still need to go back to results page
-                    await sleep(1000);
+                // Scan ALL fields (not just 'decision') for refusal keywords just in case labeling varies
+                let isRefusal = false;
+                let foundDecision = 'None';
+                Object.entries(summaryFields).forEach(([k, v]) => {
+                    const val = v.toLowerCase();
+                    if ((k.includes('decision') || k.includes('status')) && (val.includes('refuse') || val.includes('refusal'))) {
+                        isRefusal = true;
+                        foundDecision = v;
+                    }
+                });
+
+                if (isRefusal) {
+                    console.log(`[${keyVal}] SKIPPING REFUSAL: Found "${foundDecision}" in fields.`);
+                    // Navigate back to results page
                     const backUrl = $s('a:contains("search results")').attr('href');
                     if (backUrl) {
                         await mainPage.goto('https://planningaccess.york.gov.uk' + backUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => { });
