@@ -201,7 +201,7 @@ export async function runScraper(targetWeekOverride = null) {
                 const lowerPageText = pageText.toLowerCase();
                 
                 // 2. Build the fields object as before for specific mapping
-                summaryHtml = await mainPage.content();
+                const summaryHtml = await mainPage.content();
                 const $s = cheerio.load(summaryHtml);
                 const summaryFields = {};
                 $s('table tr').each((_, row) => {
