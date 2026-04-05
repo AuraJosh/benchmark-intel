@@ -9,7 +9,7 @@ import {
     Search, ChevronDown, ChevronUp, DollarSign, Users, ArrowUpRight,
     ArrowDownRight, Filter, Calendar, Tag, MoreVertical, Edit2,
     CheckCircle2, Loader2, PoundSterling, Briefcase, ReceiptText, AlertCircle,
-    Camera
+    Camera, Eye
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
