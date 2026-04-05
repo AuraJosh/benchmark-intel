@@ -85,14 +85,14 @@ const labelCls = 'block text-sm font-semibold text-gray-700 mb-1.5';
 // Small stat card
 // ──────────────────────────────────────────────
 const StatCard = ({ label, value, icon: Icon, color, sub }) => (
-    <div className={`bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex items-center gap-4`}>
-        <div className={`p-3 rounded-xl ${color.bg}`}>
-            <Icon className={`h-5 w-5 ${color.icon}`} />
+    <div className={`bg-white border border-gray-200 rounded-xl p-3 md:p-5 shadow-sm flex items-center gap-2.5 md:gap-4 overflow-hidden`}>
+        <div className={`p-2.5 md:p-3 rounded-xl shrink-0 ${color.bg}`}>
+            <Icon className={`h-4 w-4 md:h-5 md:w-5 ${color.icon}`} />
         </div>
-        <div className="min-w-0">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
-            <p className="text-xl font-bold text-[#0f172a] truncate">{value}</p>
-            {sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+        <div className="min-w-0 flex-1">
+            <p className="text-[10px] md:text-xs font-medium text-gray-500 uppercase tracking-wider truncate">{label}</p>
+            <p className={`text-base md:text-xl font-bold ${color.text || 'text-[#0f172a]'} leading-tight truncate md:whitespace-normal`}>{value}</p>
+            {sub && <p className="text-[9px] md:text-[11px] text-gray-400 mt-0.5 leading-none truncate md:whitespace-normal opacity-75">{sub}</p>}
         </div>
     </div>
 );
@@ -657,7 +657,7 @@ const Finance = () => {
                                 label="True Balance"
                                 value={fmt(stats.rev - stats.exp - stats.wg - stats.div - stats.ctReserve)}
                                 icon={Wallet}
-                                color={{ bg: 'bg-blue-600 text-white', icon: 'text-blue-100' }}
+                                color={{ bg: 'bg-blue-600', icon: 'text-blue-100', text: 'text-blue-600' }}
                                 sub="Bank minus Corp Tax Owed"
                             />
                             <StatCard
@@ -676,38 +676,37 @@ const Finance = () => {
                             />
                         </div>
 
-                        {/* Secondary Indicators */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">VAT Registered Point</p>
-                                    <p className="text-lg font-black text-[#0f172a]">{fmt(stats.rollingTurnover)} / {fmt(90000)}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                            <div className="bg-white border border-gray-200 rounded-xl p-3 md:p-4 shadow-sm flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1 text-xs">VAT Registered Point</p>
+                                    <p className="text-base md:text-lg font-black text-[#0f172a] leading-none">{fmt(stats.rollingTurnover)} <span className="text-[10px] text-gray-400 font-medium">/ 90k</span></p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold text-gray-500 uppercase">Distance</p>
-                                    <p className={`text-sm font-bold ${stats.distToVAT < 10000 ? 'text-red-500' : 'text-emerald-600'}`}>
-                                        {stats.distToVAT > 0 ? `${fmt(stats.distToVAT)} away` : 'Reached'}
+                                <div className="text-right shrink-0">
+                                    <p className="text-[9px] font-bold text-gray-500 uppercase leading-none mb-1">Distance</p>
+                                    <p className={`text-[10px] md:text-sm font-bold ${stats.distToVAT < 10000 ? 'text-red-500' : 'text-emerald-600'} leading-none`}>
+                                        {stats.distToVAT > 0 ? `${fmt(stats.distToVAT)}` : 'Reached'}
                                     </p>
                                 </div>
                             </div>
-                            <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Yearly Dividends</p>
-                                    <p className="text-lg font-black text-[#0f172a]">{fmt(stats.div)}</p>
+                            <div className="bg-white border border-gray-200 rounded-xl p-3 md:p-4 shadow-sm flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1 text-xs">Yearly Dividends</p>
+                                    <p className="text-base md:text-lg font-black text-[#0f172a] leading-none">{fmt(stats.div)}</p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold text-gray-500 uppercase">Allowance Left</p>
-                                    <p className="text-sm font-bold text-indigo-600">{fmt(Math.max(0, 500 - stats.div))}</p>
+                                <div className="text-right shrink-0">
+                                    <p className="text-[9px] font-bold text-gray-500 uppercase leading-none mb-1">Allowance</p>
+                                    <p className="text-[10px] md:text-sm font-bold text-indigo-600 leading-none">{fmt(Math.max(0, 500 - stats.div))} left</p>
                                 </div>
                             </div>
-                            <div className="bg-[#0f172a] text-white rounded-xl p-4 shadow-sm flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Optimal Salary Tracker</p>
-                                    <p className="text-lg font-black">{fmt(stats.wg)}</p>
+                            <div className="bg-[#0f172a] text-white rounded-xl p-3 md:p-4 shadow-sm flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-bold text-blue-300 uppercase tracking-widest leading-none mb-1 text-xs">Salary Tracker</p>
+                                    <p className="text-base md:text-lg font-black leading-none">{fmt(stats.wg)}</p>
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] font-bold text-blue-200 uppercase">Max Allowance</p>
-                                    <p className="text-sm font-bold text-emerald-400">{fmt(12570)}</p>
+                                <div className="text-right shrink-0">
+                                    <p className="text-[9px] font-bold text-blue-200 uppercase leading-none mb-1">Max</p>
+                                    <p className="text-[10px] md:text-sm font-bold text-emerald-400 leading-none">£12.5k</p>
                                 </div>
                             </div>
                         </div>
