@@ -158,6 +158,7 @@ const Finance = () => {
     const [addType, setAddType] = useState('revenue'); // 'revenue' | 'expense' | 'wage' | 'dividend'
     const [editItem, setEditItem] = useState(null);
     const [deleteTarget, setDeleteTarget] = useState(null);
+    const [selectedItem, setSelectedItem] = useState(null); // { item, type }
 
     // Form
     const emptyForm = {
@@ -294,13 +295,13 @@ const Finance = () => {
 
     // ── Prevent Background Scroll when Modal is Open ──
     useEffect(() => {
-        if (showAddModal || deleteTarget) {
+        if (showAddModal || deleteTarget || selectedItem) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; };
-    }, [showAddModal, deleteTarget]);
+    }, [showAddModal, deleteTarget, selectedItem]);
 
     // ── Open add modal ──
     const openAdd = (type) => {
@@ -323,6 +324,15 @@ const Finance = () => {
             dividendType: type === 'dividend' ? 'Interim' : ''
         });
         setShowAddModal(true);
+    };
+
+    // ── Open view slideover ──
+    const openView = (item, type) => {
+        setSelectedItem({ item, type });
+    };
+
+    const closeView = () => {
+        setSelectedItem(null);
     };
 
     // ── Open edit modal ──
@@ -786,6 +796,7 @@ const Finance = () => {
                                             key={`${item._type}-${item.id}`}
                                             item={item}
                                             type={item._type}
+                                            onView={() => openView(item, item._type)}
                                             onEdit={() => openEdit(item, item._type)}
                                             onDelete={() => setDeleteTarget({ ...item, type: item._type })}
                                         />
@@ -807,6 +818,7 @@ const Finance = () => {
                         onAdd={() => openAdd('revenue')}
                         onEdit={(item) => openEdit(item, 'revenue')}
                         onDelete={(item) => setDeleteTarget({ ...item, type: 'revenue' })}
+                        onView={(item) => openView(item, 'revenue')}
                         onGenerate={generateDocument}
                         totalLabel="Total Revenue"
                         total={stats.rev}
@@ -822,6 +834,7 @@ const Finance = () => {
                         onAdd={() => openAdd('expense')}
                         onEdit={(item) => openEdit(item, 'expense')}
                         onDelete={(item) => setDeleteTarget({ ...item, type: 'expense' })}
+                        onView={(item) => openView(item, 'expense')}
                         onGenerate={generateDocument}
                         totalLabel="Total Expenses"
                         total={stats.exp}
@@ -837,6 +850,7 @@ const Finance = () => {
                         onAdd={() => openAdd('wage')}
                         onEdit={(item) => openEdit(item, 'wage')}
                         onDelete={(item) => setDeleteTarget({ ...item, type: 'wage' })}
+                        onView={(item) => openView(item, 'wage')}
                         onGenerate={generateDocument}
                         totalLabel="Total Wages"
                         total={stats.wg}
@@ -852,10 +866,172 @@ const Finance = () => {
                         onAdd={() => openAdd('dividend')}
                         onEdit={(item) => openEdit(item, 'dividend')}
                         onDelete={(item) => setDeleteTarget({ ...item, type: 'dividend' })}
+                        onView={(item) => openView(item, 'dividend')}
                         onGenerate={generateDocument}
                         totalLabel="Total Dividends Paid"
                         total={stats.div}
                     />
+                )}
+            </div>
+
+            {/* ── DETAIL VIEW SLIDEOVER ── */}
+            <div className={`absolute inset-0 z-[65] bg-white flex flex-col transform transition-transform duration-500 ease-out shadow-2xl ${selectedItem ? 'translate-x-0' : 'translate-x-full'}`}>
+                {selectedItem && (
+                    <>
+                        <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center shrink-0 ${
+                            selectedItem.type === 'revenue' ? 'bg-emerald-50' : selectedItem.type === 'expense' ? 'bg-red-50' : selectedItem.type === 'dividend' ? 'bg-indigo-50' : 'bg-purple-50'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                <button onClick={closeView} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 hover:bg-white/50 rounded-full transition-colors">
+                                    <X className="h-6 w-6" />
+                                </button>
+                                <div>
+                                    <h3 className="text-lg font-bold text-[#0f172a] capitalize">{selectedItem.type} Details</h3>
+                                    <p className="text-xs text-gray-500 font-medium">Record ID: {selectedItem.item.id.slice(-8).toUpperCase()}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => { const itm = selectedItem.item; const tp = selectedItem.type; closeView(); openEdit(itm, tp); }}
+                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-white rounded-full shadow-sm ring-1 ring-gray-200"
+                                >
+                                    <Edit2 className="h-5 w-5" />
+                                </button>
+                                <button 
+                                    onClick={() => { const itm = selectedItem.item; const tp = selectedItem.type; closeView(); setDeleteTarget({ ...itm, type: tp }); }}
+                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-full shadow-sm ring-1 ring-gray-200"
+                                >
+                                    <Trash2 className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-gray-50/30">
+                            <div className="max-w-4xl mx-auto space-y-8">
+                                {/* Hero Header */}
+                                <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm text-center">
+                                    <div className="flex justify-center mb-4">
+                                        <div className={`p-4 rounded-2xl ${
+                                            selectedItem.type === 'revenue' ? 'bg-emerald-100 text-emerald-600' : 
+                                            selectedItem.type === 'expense' ? 'bg-red-100 text-red-500' : 
+                                            selectedItem.type === 'dividend' ? 'bg-indigo-100 text-indigo-600' : 'bg-purple-100 text-purple-600'
+                                        }`}>
+                                            {selectedItem.type === 'revenue' ? <TrendingUp className="h-8 w-8" /> : 
+                                             selectedItem.type === 'expense' ? <TrendingDown className="h-8 w-8" /> : 
+                                             selectedItem.type === 'dividend' ? <DollarSign className="h-8 w-8" /> : <Users className="h-8 w-8" />}
+                                        </div>
+                                    </div>
+                                    <h2 className={`text-4xl font-extrabold tracking-tight ${selectedItem.type === 'revenue' ? 'text-emerald-600' : 'text-[#0f172a]'}`}>
+                                        {selectedItem.type === 'revenue' ? '+' : '-'}{fmt(selectedItem.item.amount)}
+                                    </h2>
+                                    <p className="mt-2 text-lg font-medium text-gray-900">{selectedItem.item.description}</p>
+                                    <div className="mt-4 flex items-center justify-center gap-2">
+                                        <Calendar className="h-4 w-4 text-gray-400" />
+                                        <span className="text-sm font-semibold text-gray-500">{new Date(selectedItem.item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                    </div>
+                                </div>
+
+                                {/* Core Details Grid */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Category / Group</p>
+                                        <p className="font-bold text-gray-900">{selectedItem.item.category || (selectedItem.type === 'wage' ? selectedItem.item.wageType : selectedItem.item.dividendType) || 'Uncategorized'}</p>
+                                    </div>
+                                    {(selectedItem.item.staffName || selectedItem.item.shareholder) && (
+                                        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{selectedItem.type === 'wage' ? 'Assignee' : 'Recipient'}</p>
+                                            <p className="font-bold text-gray-900">{selectedItem.item.staffName || selectedItem.item.shareholder}</p>
+                                        </div>
+                                    )}
+                                    <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Tax Filing Group</p>
+                                        <p className="font-bold text-blue-600">{selectedItem.item.nominalCode || (selectedItem.type === 'revenue' ? 'Sales (4000)' : 'Equity (3100)')}</p>
+                                    </div>
+                                </div>
+
+                                {/* HMRC Insight (Expenses Only) */}
+                                {selectedItem.type === 'expense' && (
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex items-start gap-4">
+                                        <div className="p-3 bg-orange-50 rounded-xl">
+                                            <AlertCircle className="h-6 w-6 text-orange-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="text-sm font-bold text-gray-900 uppercase tracking-tight">HMRC Tax Treatment</h4>
+                                            {(() => {
+                                                const cat = EXPENSE_CATEGORIES.find(c => c.label === selectedItem.item.category);
+                                                return cat ? (
+                                                    <div className="mt-2 space-y-1">
+                                                        <p className="text-sm text-gray-600 font-medium">{cat.deductible} Deductible — {cat.impact}</p>
+                                                        <p className="text-xs text-gray-400 italic leading-relaxed">This nominal code will be grouped in your CT600 Corporation Tax return as a ${cat.deductible.toLowerCase()} allowable deduction from your pre-tax trading profits.</p>
+                                                    </div>
+                                                ) : <p className="mt-2 text-sm text-gray-500">Uncategorized expense. Relief treatment unknown.</p>;
+                                            })()}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Audit Evidence / Note Block */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col h-full">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="text-xs font-bold uppercase text-gray-400 tracking-wider">HMRC Audit Evidence</h4>
+                                            {(selectedItem.type === 'wage' || selectedItem.type === 'dividend') && (
+                                                <button 
+                                                    onClick={() => generateDocument(selectedItem.item, selectedItem.type)}
+                                                    className="text-[#0284c7] text-xs font-bold flex items-center gap-1 hover:underline"
+                                                >
+                                                    <ReceiptText className="h-3.5 w-3.5" /> {selectedItem.type === 'wage' ? 'Get Payslip' : 'Get Voucher'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        {selectedItem.item.receiptUrl ? (
+                                            <div className="relative group flex-1 min-h-[300px]">
+                                                <img src={selectedItem.item.receiptUrl} className="w-full h-full object-cover rounded-xl border border-gray-100" alt="Evidence" />
+                                                <a 
+                                                    href={selectedItem.item.receiptUrl} 
+                                                    target="_blank" 
+                                                    rel="noreferrer" 
+                                                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl"
+                                                >
+                                                    <button className="bg-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                                                        <ExternalLink className="h-4 w-4" /> Open Original
+                                                    </button>
+                                                </a>
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+                                                <ReceiptText className="h-10 w-10 text-gray-300" />
+                                                <p className="mt-3 text-sm font-medium text-gray-500">No receipt attached.</p>
+                                                <button 
+                                                    onClick={() => { const itm = selectedItem.item; const tp = selectedItem.type; closeView(); openEdit(itm, tp); }}
+                                                    className="mt-4 text-[10px] bg-white border border-gray-300 px-3 py-1.5 rounded-lg font-bold uppercase text-gray-600 hover:bg-gray-100"
+                                                >
+                                                    Upload Evidence
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col">
+                                        <h4 className="text-xs font-bold uppercase text-gray-400 tracking-wider mb-4">Internal Notes</h4>
+                                        <div className="flex-1 space-y-4">
+                                            {selectedItem.item.notes ? (
+                                                <p className="text-sm text-gray-700 leading-relaxed font-medium">"{selectedItem.item.notes}"</p>
+                                            ) : (
+                                                <p className="text-sm text-gray-400 italic">No notes recorded for this transaction.</p>
+                                            )}
+                                            {selectedItem.item.invoiceId && (
+                                                <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-2">
+                                                    <TrendingUp className="h-4 w-4 text-blue-600" />
+                                                    <span className="text-xs text-blue-700 font-medium">Auto-logged from Invoice #{selectedItem.item.invoiceId.slice(-6).toUpperCase()}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
 
@@ -1160,12 +1336,18 @@ const Finance = () => {
 // ──────────────────────────────────────────────
 // Transaction row (used on overview quick list)
 // ──────────────────────────────────────────────
-const TransactionRow = ({ item, type, onEdit, onDelete }) => {
+const TransactionRow = ({ item, type, onView, onEdit, onDelete }) => {
     const isRevenue = type === 'revenue';
     const isWage = type === 'wage';
     const isDividend = type === 'dividend';
+
+    const handleRowClick = (e) => {
+        if (e.target.closest('button')) return;
+        if (onView) onView(item, type);
+    };
+
     return (
-        <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 group transition-colors">
+        <div onClick={handleRowClick} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 group transition-colors cursor-pointer">
             <div className={`p-2 rounded-lg shrink-0 ${isRevenue ? 'bg-emerald-50' : isWage ? 'bg-purple-50' : isDividend ? 'bg-indigo-50' : 'bg-red-50'}`}>
                 {isRevenue ? <ArrowUpRight className="h-4 w-4 text-emerald-600" /> :
                  isWage ? <Users className="h-4 w-4 text-purple-600" /> :
@@ -1202,11 +1384,16 @@ const TransactionRow = ({ item, type, onEdit, onDelete }) => {
 // ──────────────────────────────────────────────
 // Full entries table (Income / Outgoings / Wages tabs)
 // ──────────────────────────────────────────────
-const EntriesTable = ({ rows, type, emptyLabel, onAdd, onEdit, onDelete, onGenerate, totalLabel, total }) => {
+const EntriesTable = ({ rows, type, emptyLabel, onAdd, onEdit, onDelete, onView, onGenerate, totalLabel, total }) => {
     const isRevenue = type === 'revenue';
     const isWage = type === 'wage';
     const isDividend = type === 'dividend';
     const isExpense = type === 'expense';
+
+    const handleRowClick = (item) => {
+        if (onView) onView(item);
+        else onEdit(item);
+    };
 
     return (
         <div className="flex flex-col gap-4">
@@ -1252,7 +1439,11 @@ const EntriesTable = ({ rows, type, emptyLabel, onAdd, onEdit, onDelete, onGener
                                 {rows.map((item) => {
                                     const expCat = isExpense ? EXPENSE_CATEGORIES.find(c => c.label === item.category) : null;
                                     return (
-                                        <tr key={item.id} className="hover:bg-gray-50 group transition-colors">
+                                        <tr 
+                                            key={item.id} 
+                                            onClick={() => handleRowClick(item)}
+                                            className="hover:bg-gray-50 group transition-colors cursor-pointer"
+                                        >
                                             <td className="px-5 py-3.5">
                                                 <div className="font-medium text-[#0f172a] truncate max-w-[200px]">{item.description}</div>
                                                 {isExpense && expCat && (
