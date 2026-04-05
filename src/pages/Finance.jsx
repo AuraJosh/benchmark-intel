@@ -8,7 +8,8 @@ import {
     TrendingUp, TrendingDown, Wallet, Plus, X, Save, Trash2,
     Search, ChevronDown, ChevronUp, DollarSign, Users, ArrowUpRight,
     ArrowDownRight, Filter, Calendar, Tag, MoreVertical, Edit2,
-    CheckCircle2, Loader2, PoundSterling, Briefcase, ReceiptText, AlertCircle
+    CheckCircle2, Loader2, PoundSterling, Briefcase, ReceiptText, AlertCircle,
+    Camera
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -174,9 +175,12 @@ const Finance = () => {
         // expenses specific
         nominalCode: '',
         isFixedAsset: false,
+        receiptUrl: '',
+        invoiceId: '', // For linked revenue
     };
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
+    const [uploading, setUploading] = useState(false);
 
     // ── Document Generation ──
     const generateDocument = (item, type) => {
@@ -344,6 +348,8 @@ const Finance = () => {
             category: form.category,
             date: form.date,
             notes: form.notes.trim(),
+            receiptUrl: form.receiptUrl || '',
+            invoiceId: form.invoiceId || '',
             updatedAt: serverTimestamp(),
         };
 
@@ -367,8 +373,28 @@ const Finance = () => {
             setShowAddModal(false);
         } catch (e) {
             console.error(e);
+            alert("Error saving: " + e.message);
         } finally {
             setSaving(false);
+        }
+    };
+
+    // ── Handle Receipt Upload ──
+    const handleReceiptUpload = async (file) => {
+        if (!file) return;
+        setUploading(true);
+        try {
+            const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+            const storage = getStorage();
+            const storageRef = ref(storage, `financial_records/receipts/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(snapshot.ref);
+            setForm(p => ({ ...p, receiptUrl: url }));
+        } catch (e) {
+            console.error(e);
+            alert("Upload failed: " + e.message);
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -1012,6 +1038,45 @@ const Finance = () => {
                                 )}
                             </div>
 
+
+                            {/* Receipt Upload (Expenses Only) */}
+                            {addType === 'expense' && (
+                                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <label className="text-[10px] font-bold uppercase text-gray-500 mb-2 block">HMRC Evidence (Receipt/Invoice)</label>
+                                    <div className="flex items-center gap-3">
+                                        {form.receiptUrl ? (
+                                            <div className="relative h-16 w-16 group">
+                                                <img src={form.receiptUrl} className="h-full w-full object-cover rounded-md border" alt="Receipt" />
+                                                <button 
+                                                    onClick={() => setForm(p => ({ ...p, receiptUrl: '' }))}
+                                                    className="absolute -top-2 -right-2 bg-red-500 text-white p-0.5 rounded-full shadow-md"
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg py-4 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all">
+                                                {uploading ? <Loader2 className="h-5 w-5 animate-spin text-blue-500" /> : <Camera className="h-5 w-5 text-gray-400" />}
+                                                <span className="text-[10px] font-bold mt-1 text-gray-500 uppercase">{uploading ? 'Uploading...' : 'Take Photo / Upload'}</span>
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*" 
+                                                    capture="environment" 
+                                                    className="hidden" 
+                                                    onChange={(e) => handleReceiptUpload(e.target.files[0])}
+                                                    disabled={uploading}
+                                                />
+                                            </label>
+                                        )}
+                                        <div className="flex-1">
+                                            <p className="text-[10px] text-gray-400 leading-tight">
+                                                {form.receiptUrl ? 'Receipt attached and ready for HMRC filing.' : 'Use your camera to snap a photo of the receipt. Required for audit trails.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Notes */}
                             <div>
                                 <label className={labelCls}>Notes <span className="text-gray-400 font-normal">(optional)</span></label>
@@ -1207,6 +1272,17 @@ const EntriesTable = ({ rows, type, emptyLabel, onAdd, onEdit, onDelete, onGener
                                             </td>
                                             <td className="px-5 py-3.5 text-right">
                                                 <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {item.receiptUrl && (
+                                                        <a 
+                                                            href={item.receiptUrl} 
+                                                            target="_blank" 
+                                                            rel="noreferrer"
+                                                            title="View HMRC Evidence"
+                                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                        </a>
+                                                    )}
                                                     {isDividend && (
                                                         <button 
                                                             onClick={() => onGenerate(item, 'dividend')}

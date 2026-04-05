@@ -229,10 +229,31 @@ const Invoices = () => {
                 });
             }
 
-            // If this payment completed the WHOLE project, trigger the big celebration
-            if (overallStatus === 'Paid') {
+            // If this payment completed the WHOLE project, trigger the big celebration & log to Finance
+            if (overallStatus === 'Paid' && !selectedInvoice.revenueLogged) {
                 setShowCompletionBanner(true);
                 
+                // ── LOG TO FINANCE 🚀 ──
+                try {
+                    const projectAddr = getProjectAddress(selectedInvoice.projectId);
+                    await addDoc(collection(db, 'fin_revenue'), {
+                        amount: selectedInvoice.commissionTotal,
+                        category: 'Commission',
+                        date: new Date().toISOString().slice(0, 10),
+                        description: `Commission — ${projectAddr}`,
+                        invoiceId: selectedInvoice.id,
+                        nominalCode: '4000', // Sales/Commission nominal
+                        notes: `Auto-logged from Invoice #${selectedInvoice.id.slice(-6).toUpperCase()}`,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    
+                    // Mark as logged to prevent duplicates
+                    await updateDoc(invoiceRef, { revenueLogged: true });
+                } catch (err) {
+                    console.error("Failed to auto-log revenue:", err);
+                }
+
                 // Scroll to top to see the banner
                 if (scrollContainerRef.current) {
                     scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
