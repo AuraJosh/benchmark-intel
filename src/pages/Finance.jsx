@@ -130,6 +130,15 @@ const Finance = () => {
         return d >= start && d <= end;
     };
 
+    const getCurrentTaxYear = () => {
+        const now = new Date();
+        const year = now.getFullYear();
+        if (now.getMonth() < 3 || (now.getMonth() === 3 && now.getDate() < 6)) {
+            return String(year - 1);
+        }
+        return String(year);
+    };
+
     // Data
     const [revenue, setRevenue] = useState([]);
     const [expenses, setExpenses] = useState([]);
@@ -141,7 +150,7 @@ const Finance = () => {
     const [search, setSearch] = useState('');
     const [filterMonth, setFilterMonth] = useState(''); // '' = all
     const [filterYear, setFilterYear] = useState(String(new Date().getFullYear()));
-    const [filterTaxYear, setFilterTaxYear] = useState('2026'); // April 2026 - April 2027
+    const [filterTaxYear, setFilterTaxYear] = useState(getCurrentTaxYear());
 
     // Modals
     const [showAddModal, setShowAddModal] = useState(false);
@@ -217,6 +226,43 @@ const Finance = () => {
         };
 
         html2pdf().set(opt).from(content).save();
+    };
+
+    // ── CSV Export Logic ──
+    const exportHMRCData = () => {
+        // Combine all relevant data for the current filters
+        const exportData = [
+            ...filteredRevenue.map(i => ({ ...i, type: 'Revenue', taxBenefit: '100% Taxable', nominal: '4000' })),
+            ...filteredExpenses.map(e => {
+                const cat = EXPENSE_CATEGORIES.find(c => c.label === e.category);
+                return { ...e, type: 'Expense', taxBenefit: cat ? cat.deductible : 'Unknown', nominal: cat ? cat.code : '7999' };
+            }),
+            ...filteredWages.map(w => ({ ...w, type: 'Administrative (Wage)', taxBenefit: 'Fully Deductible', nominal: '7000' })),
+            ...filteredDividends.map(d => ({ ...d, type: 'Equity Dividend', taxBenefit: 'Post-Tax (Equity)', nominal: '3100' })),
+        ].sort((a,b) => a.date.localeCompare(b.date));
+
+        // Create CSV content
+        const headers = ['Date', 'Type', 'Description', 'Category', 'Nominal Code', 'Amount', 'Tax Relief Treatment'];
+        const rows = exportData.map(d => [
+            d.date, 
+            `"${d.type}"`, 
+            `"${d.description.replace(/"/g, '""')}"`, 
+            `"${d.category || ''}"`, 
+            d.nominal || '', 
+            d.amount.toFixed(2), 
+            `"${d.taxBenefit}"`
+        ]);
+        
+        let csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `HMRC_Export_${filterTaxYear || 'Summary'}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     useEffect(() => {
@@ -395,6 +441,7 @@ const Finance = () => {
         
         const ctReserve = profitBeforeTax > 0 ? profitBeforeTax * ctRate : 0;
         const distributableProfit = (rev - exp - wg) - ctReserve;
+        const remainingProfit = distributableProfit - div;
         
         // VAT Tracker (£90k threshold)
         const rollingTurnover = filteredRevenue.reduce((s, i) => s + (i.amount || 0), 0); // Simplified to current filter
@@ -404,7 +451,7 @@ const Finance = () => {
         return {
             rev, exp, wg, div, 
             profitBeforeTax, ctReserve, ctRate,
-            distributableProfit,
+            distributableProfit, remainingProfit,
             rollingTurnover, distToVAT
         };
     };
@@ -453,6 +500,13 @@ const Finance = () => {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={exportHMRCData}
+                        className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+                    >
+                        <Save className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Export for HMRC</span>
+                    </button>
                     <button
                         onClick={() => openAdd('revenue')}
                         className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm hover:bg-emerald-700 transition-colors"
