@@ -53,17 +53,16 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
     useEffect(() => {
         if (showOptions) {
             const timeout = setTimeout(() => {
-                // Focus on the pin location to ensure space for the expanded popup
-                if (project.coordinates) {
-                    map.panTo([project.coordinates.lat, project.coordinates.lng], {
-                        animate: true,
-                        duration: 0.5
-                    });
-                }
-            }, 50);
+                // Pan specifically to make room for the *top* of the expanded popup
+                // By panning the view "up" (-150 pixels), we push the pin towards the bottom of the screen
+                map.panBy([0, -150], {
+                    animate: true,
+                    duration: 0.5
+                });
+            }, 100);
             return () => clearTimeout(timeout);
         }
-    }, [showOptions, project.coordinates, map]);
+    }, [showOptions, map]);
 
     const handleAdd = async () => {
         if (!popupRouteDate && !popupExistingRouteId) return;
