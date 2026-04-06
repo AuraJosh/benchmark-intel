@@ -41,20 +41,19 @@ const generateWBDates = (weeksBack = 52) => {
 };
 
 // Self-contained popup component so each pin has independent route picker state
-const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate, isSelected, onToggleSelection }) => {
+const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
+    const [showOptions, setShowOptions] = useState(false);
     const [popupRouteDate, setPopupRouteDate] = useState('');
     const [popupExistingRouteId, setPopupExistingRouteId] = useState('');
     const [adding, setAdding] = useState(false);
     const [added, setAdded] = useState(false);
 
-    const handleAddSingle = async () => {
+    const handleAdd = async () => {
         if (!popupRouteDate && !popupExistingRouteId) return;
         setAdding(true);
         try {
             if (popupExistingRouteId) {
-                await updateDoc(doc(db, 'routes', popupExistingRouteId), {
-                    projectIds: arrayUnion(project.id)
-                });
+                await updateDoc(doc(db, 'routes', popupExistingRouteId), { projectIds: arrayUnion(project.id) });
                 setAdded(true);
                 setTimeout(() => onNavigate(`/routing?id=${popupExistingRouteId}`), 800);
             } else if (popupRouteDate) {
@@ -77,60 +76,64 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate, isSelecte
     };
 
     return (
-        <div className="space-y-4" style={{ minWidth: 230 }}>
+        <div className="flex flex-col gap-1.5" style={{ minWidth: 200 }}>
             <div>
-                <p className="font-bold text-sm text-[#0f172a] leading-tight">{project.address}</p>
-                <div className="flex gap-2 mt-1">
-                    <StatusBadge status={project.status} />
-                    <button onClick={onOpenProject} className="text-[11px] text-blue-600 font-bold hover:underline">View Project →</button>
+                <p className="font-bold text-[13px] text-[#0f172a] leading-tight mb-0.5">{project.address}</p>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-gray-400">{project.status}</span>
+                    <button onClick={onOpenProject} className="text-[10px] text-blue-600 font-bold hover:underline">View →</button>
+                    {project.url && (
+                        <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-gray-400">
+                             <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                    )}
                 </div>
             </div>
 
             {project.description && (
-                <p className="text-xs text-gray-500 line-clamp-2 italic border-l-2 border-gray-100 pl-2">
-                    {project.description}
-                </p>
+                <p className="text-[11px] text-gray-500 line-clamp-1 italic">{project.description}</p>
             )}
 
-            <div className="bg-gray-50 -mx-4 px-4 py-3 border-y border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Route Builder</p>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            className="sr-only peer" 
-                            checked={isSelected}
-                            onChange={onToggleSelection}
-                        />
-                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-                        <span className="ml-2 text-xs font-bold text-gray-700">{isSelected ? 'Selected' : 'Select'}</span>
-                    </label>
-                </div>
-                
-                {!isSelected && !added && (
-                    <div className="space-y-2 mt-2 pt-2 border-t border-gray-200/50">
-                        <p className="text-[9px] text-gray-400 font-medium">Or add instantly:</p>
-                        <select
-                            value={popupExistingRouteId}
-                            onChange={e => { setPopupExistingRouteId(e.target.value); if (e.target.value) setPopupRouteDate(''); }}
-                            className="w-full rounded border border-gray-200 px-2 py-1 text-[11px] focus:outline-none bg-white"
+            {!showOptions && !added && (
+                <button 
+                    onClick={() => setShowOptions(true)}
+                    className="w-full mt-1 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-[11px] font-bold text-gray-700 hover:bg-gray-100 transition-colors flex items-center justify-center gap-1.5"
+                >
+                    <MapPin className="h-3 w-3 text-gray-400" /> Add to Route
+                </button>
+            )}
+
+            {showOptions && !added && (
+                <div className="mt-1 pt-2 border-t border-gray-100 space-y-2 animate-in fade-in duration-200">
+                    <select
+                        value={popupExistingRouteId}
+                        onChange={e => { setPopupExistingRouteId(e.target.value); if (e.target.value) setPopupRouteDate(''); }}
+                        className="w-full rounded border border-gray-200 px-2 py-1 text-[11px] focus:outline-none"
+                    >
+                        <option value="">Existing route...</option>
+                        {routesList.map(r => (
+                            <option key={r.id} value={r.id}>{r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown'}</option>
+                        ))}
+                    </select>
+                    <input
+                        type="date"
+                        value={popupRouteDate}
+                        onChange={e => { setPopupRouteDate(e.target.value); if (e.target.value) setPopupExistingRouteId(''); }}
+                        className="w-full rounded border border-gray-200 px-2 py-1 text-[11px]"
+                    />
+                    <div className="flex gap-1.5">
+                        <button onClick={() => setShowOptions(false)} className="flex-1 py-1.5 border border-gray-200 text-gray-500 rounded text-[11px] font-bold">Cancel</button>
+                        <button 
+                            onClick={handleAdd}
+                            disabled={adding || (!popupRouteDate && !popupExistingRouteId)}
+                            className="flex-[2] py-1.5 bg-[#0f172a] text-white rounded text-[11px] font-bold disabled:opacity-30"
                         >
-                            <option value="">Existing route...</option>
-                            {routesList.map(r => (
-                                <option key={r.id} value={r.id}>{r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown'}</option>
-                            ))}
-                        </select>
-                        <button
-                            onClick={handleAddSingle}
-                            disabled={adding || (!popupRouteDate && !popupExistingRouteId && !popupRouteDate)}
-                            className="w-full py-1 text-[11px] bg-white border border-gray-200 rounded font-bold hover:bg-gray-50 disabled:opacity-30"
-                        >
-                            {adding ? 'Adding...' : 'Direct Add'}
+                            {adding ? 'Adding...' : 'Confirm'}
                         </button>
                     </div>
-                )}
-                {added && <p className="text-xs text-emerald-600 font-bold text-center">Added to route!</p>}
-            </div>
+                </div>
+            )}
+            {added && <p className="text-[11px] text-emerald-600 font-bold text-center mt-1 py-1 bg-emerald-50 rounded">Redirecting...</p>}
         </div>
     );
 };
@@ -934,8 +937,6 @@ const Projects = () => {
                                                 routesList={routesList}
                                                 onOpenProject={() => openProject(project)}
                                                 onNavigate={navigate}
-                                                isSelected={isSelected}
-                                                onToggleSelection={() => toggleMapPin(project.id)}
                                             />
                                         </Popup>
                                     </Marker>
