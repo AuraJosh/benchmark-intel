@@ -1,5 +1,4 @@
-import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive, Package, UploadCloud, File, Trash2, MessageSquare, Navigation as NavIcon } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, where, writeBatch, limit, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -55,8 +54,7 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
             if (popupExistingRouteId) {
                 await updateDoc(doc(db, 'routes', popupExistingRouteId), { projectIds: arrayUnion(project.id) });
                 setAdded(true);
-                // No redirect for single additions
-                setTimeout(() => { setAdded(false); setShowOptions(false); }, 2000);
+                setTimeout(() => { setAdded(false); setShowOptions(false); }, 3000);
             } else if (popupRouteDate) {
                 await addDoc(collection(db, 'routes'), {
                     date: popupRouteDate,
@@ -67,7 +65,7 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
                     timestamp: serverTimestamp()
                 });
                 setAdded(true);
-                setTimeout(() => { setAdded(false); setShowOptions(false); }, 2000);
+                setTimeout(() => { setAdded(false); setShowOptions(false); }, 3000);
             }
         } catch (e) {
             console.error(e);
@@ -105,7 +103,7 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
             )}
 
             {showOptions && !added && (
-                <div className="mt-1 pt-2 border-t border-gray-100 space-y-2 animate-in fade-in duration-200">
+                <div className="mt-1 pt-2 border-t border-gray-100 space-y-2">
                     <select
                         value={popupExistingRouteId}
                         onChange={e => { setPopupExistingRouteId(e.target.value); if (e.target.value) setPopupRouteDate(''); }}
@@ -134,12 +132,59 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
                     </div>
                 </div>
             )}
-            {added && <p className="text-[11px] text-emerald-600 font-bold text-center mt-1 py-1.5 bg-emerald-50 rounded flex items-center justify-center gap-2 animate-in zoom-in-95 duration-300">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Added to Route Successfully!
+            {added && <p className="text-[11px] text-emerald-600 font-bold text-center mt-1 py-1.5 bg-emerald-50 rounded flex items-center justify-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Added Successfully!
             </p>}
         </div>
     );
 };
+
+// Memoized Map to prevent auto-closing popups on project list updates
+const MapDisplay = memo(({ filteredProjects, mapSelectedIds, toggleMapPin, routesList, openProject, navigate }) => {
+    return (
+        <MapContainer
+            center={[53.9591, -1.0815]}
+            zoom={13}
+            style={{ height: '100%', width: '100%' }}
+        >
+            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            {filteredProjects.filter(p => p.coordinates?.lat && p.coordinates?.lng).map(project => {
+                const isSelected = mapSelectedIds.includes(project.id);
+                const icon = L.divIcon({
+                    className: '',
+                    html: `<div style="
+                        width:28px;height:28px;border-radius:50% 50% 50% 0;
+                        transform:rotate(-45deg);
+                        background:${isSelected ? '#10b981' : '#0284c7'};
+                        border:2px solid white;
+                        box-shadow:0 2px 6px rgba(0,0,0,0.3);
+                        display:flex;align-items:center;justify-content:center;
+                        transition: all 0.3s ease;
+                    "><div style="transform:rotate(45deg);color:white;font-size:10px;font-weight:bold;margin-top:2px;">${isSelected ? '✓' : ''}</div></div>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 28],
+                    popupAnchor: [0, -30]
+                });
+                return (
+                    <Marker
+                        key={project.id}
+                        position={[project.coordinates.lat, project.coordinates.lng]}
+                        icon={icon}
+                    >
+                        <Popup minWidth={250}>
+                            <MapPinPopup
+                                project={project}
+                                routesList={routesList}
+                                onOpenProject={() => openProject(project)}
+                                onNavigate={navigate}
+                            />
+                        </Popup>
+                    </Marker>
+                );
+            })}
+        </MapContainer>
+    );
+});
 
 const Projects = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -905,47 +950,14 @@ const Projects = () => {
                     </>
                 ) : (
                     <div className="flex-1 w-full relative z-0 min-h-0">
-                        <MapContainer
-                            center={[53.9591, -1.0815]}
-                            zoom={13}
-                            style={{ height: '100%', width: '100%' }}
-                        >
-                            <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                            {filteredProjects.filter(p => p.coordinates?.lat && p.coordinates?.lng).map(project => {
-                                const isSelected = mapSelectedIds.includes(project.id);
-                                const icon = L.divIcon({
-                                    className: '',
-                                    html: `<div style="
-                                        width:28px;height:28px;border-radius:50% 50% 50% 0;
-                                        transform:rotate(-45deg);
-                                        background:${isSelected ? '#10b981' : '#0284c7'};
-                                        border:2px solid white;
-                                        box-shadow:0 2px 6px rgba(0,0,0,0.3);
-                                        display:flex;align-items:center;justify-content:center;
-                                        transition: all 0.3s ease;
-                                    "><div style="transform:rotate(45deg);color:white;font-size:10px;font-weight:bold;margin-top:2px;">${isSelected ? '✓' : ''}</div></div>`,
-                                    iconSize: [28, 28],
-                                    iconAnchor: [14, 28],
-                                    popupAnchor: [0, -30]
-                                });
-                                return (
-                                    <Marker
-                                        key={project.id}
-                                        position={[project.coordinates.lat, project.coordinates.lng]}
-                                        icon={icon}
-                                    >
-                                        <Popup minWidth={250}>
-                                            <MapPinPopup
-                                                project={project}
-                                                routesList={routesList}
-                                                onOpenProject={() => openProject(project)}
-                                                onNavigate={navigate}
-                                            />
-                                        </Popup>
-                                    </Marker>
-                                );
-                            })}
-                        </MapContainer>
+                        <MapDisplay 
+                            filteredProjects={filteredProjects}
+                            mapSelectedIds={mapSelectedIds}
+                            toggleMapPin={toggleMapPin}
+                            routesList={routesList}
+                            openProject={openProject}
+                            navigate={navigate}
+                        />
 
                         {/* Floating action bar — slides up ONLY when pins are selected */}
                         {mapSelectedIds.length > 0 && (
