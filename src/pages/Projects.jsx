@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, where, writeBatch, limit, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import UniversalTimeline from '../components/UniversalTimeline';
@@ -42,11 +42,28 @@ const generateWBDates = (weeksBack = 52) => {
 
 // Self-contained popup component so each pin has independent route picker state
 const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
+    const map = useMap();
     const [showOptions, setShowOptions] = useState(false);
     const [popupRouteDate, setPopupRouteDate] = useState('');
     const [popupExistingRouteId, setPopupExistingRouteId] = useState('');
     const [adding, setAdding] = useState(false);
     const [added, setAdded] = useState(false);
+
+    // Auto-pan the map when the popup expands so it doesn't get cut off
+    useEffect(() => {
+        if (showOptions) {
+            const timeout = setTimeout(() => {
+                // Focus on the pin location to ensure space for the expanded popup
+                if (project.coordinates) {
+                    map.panTo([project.coordinates.lat, project.coordinates.lng], {
+                        animate: true,
+                        duration: 0.5
+                    });
+                }
+            }, 50);
+            return () => clearTimeout(timeout);
+        }
+    }, [showOptions, project.coordinates, map]);
 
     const handleAdd = async () => {
         if (!popupRouteDate && !popupExistingRouteId) return;
