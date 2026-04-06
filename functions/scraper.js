@@ -319,22 +319,24 @@ export async function runScraper(targetWeekOverride = null) {
                         url: detailUrl,
                     };
 
-                    // Also try geocoding existing projects if coordinates are missing
+                    // Try geocoding existing projects if coordinates are missing - FASTER LOGIC
                     if (!existing.coordinates || !existing.coordinates.lat || !existing.coordinates.lng) {
                         try {
                             const fullAddr = `${appInfo.addr}, York, UK`;
                             let geoResponse = await axios.get(
                                 `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddr)}&limit=1`,
-                                { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
+                                { headers: { 'User-Agent': 'BenchmarkIntel/1.0' }, timeout: 3000 }
                             ).catch(() => ({ data: [] }));
 
+                            // --- FAST FALLBACK: Try just the Postcode (much more reliable) ---
                             if (!geoResponse.data || geoResponse.data.length === 0) {
-                                const components = appInfo.addr.split(',');
-                                if (components.length > 1) {
-                                    const fuzzyAddr = `${components.slice(-2).join(',').trim()}, UK`;
+                                const postcodeMatch = appInfo.addr.match(/[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][ABD-HJLNP-UW-Z]{2}/i);
+                                if (postcodeMatch) {
+                                    const postcode = postcodeMatch[0];
+                                    console.log(`[${keyVal}] Geocoding fallback to postcode: ${postcode}`);
                                     geoResponse = await axios.get(
-                                        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fuzzyAddr)}&limit=1`,
-                                        { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
+                                        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(postcode)}&limit=1`,
+                                        { headers: { 'User-Agent': 'BenchmarkIntel/1.0' }, timeout: 3000 }
                                     ).catch(() => ({ data: [] }));
                                 }
                             }
@@ -344,7 +346,6 @@ export async function runScraper(targetWeekOverride = null) {
                                     lat: parseFloat(geoResponse.data[0].lat),
                                     lng: parseFloat(geoResponse.data[0].lon),
                                 };
-                                console.log(`[${keyVal}] Re-geocoded existing project: ${geoResponse.data[0].lat}, ${geoResponse.data[0].lon}`);
                             }
                         } catch (err) { }
                     }
@@ -370,23 +371,20 @@ export async function runScraper(targetWeekOverride = null) {
 
                     try {
                         const fullAddr = `${appInfo.addr}, York, UK`;
-                        console.log(`[${keyVal}] Geocoding attempt 1 (Full): ${fullAddr}`);
-                        
                         let geoResponse = await axios.get(
                             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddr)}&limit=1`,
-                            { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
+                            { headers: { 'User-Agent': 'BenchmarkIntel/1.0' }, timeout: 3000 }
                         ).catch(() => ({ data: [] }));
 
-                        // --- FUZZY RETRY: If full address fails, try stripping building/flat info to get the street ---
+                        // --- FAST FALLBACK: Try just the Postcode (much more reliable) ---
                         if (!geoResponse.data || geoResponse.data.length === 0) {
-                            const components = appInfo.addr.split(',');
-                            if (components.length > 1) {
-                                // Take the last two parts (usually Street and York/Postcode)
-                                const fuzzyAddr = `${components.slice(-2).join(',').trim()}, UK`;
-                                console.log(`[${keyVal}] Geocoding attempt 2 (Fuzzy): ${fuzzyAddr}`);
+                            const postcodeMatch = appInfo.addr.match(/[A-Z]{1,2}[0-9][A-Z0-9]? [0-9][ABD-HJLNP-UW-Z]{2}/i);
+                            if (postcodeMatch) {
+                                const postcode = postcodeMatch[0];
+                                console.log(`[${keyVal}] New project geocoding fallback to postcode: ${postcode}`);
                                 geoResponse = await axios.get(
-                                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fuzzyAddr)}&limit=1`,
-                                    { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
+                                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(postcode)}&limit=1`,
+                                    { headers: { 'User-Agent': 'BenchmarkIntel/1.0' }, timeout: 3000 }
                                 ).catch(() => ({ data: [] }));
                             }
                         }
@@ -397,11 +395,9 @@ export async function runScraper(targetWeekOverride = null) {
                                 lng: parseFloat(geoResponse.data[0].lon),
                             };
                             console.log(`[${keyVal}] SUCCESS: Geocoded to ${geoResponse.data[0].lat}, ${geoResponse.data[0].lon}`);
-                        } else {
-                            console.warn(`[${keyVal}] FAILED: Could not find coordinates for "${appInfo.addr}"`);
                         }
                     } catch (geoErr) {
-                        console.warn(`[${keyVal}] Geocoding Error: ${geoErr.message}`);
+                        console.warn(`[${keyVal}] Geocoding failed: ${geoErr.message}`);
                     }
 
                     await docRef.set(projectData);
