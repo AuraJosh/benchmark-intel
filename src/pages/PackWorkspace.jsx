@@ -673,26 +673,43 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
 
     return (
         <div className="flex flex-col h-full bg-gray-50 overflow-hidden relative">
-            {/* Header */}
-            <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                    <button onClick={handleClose} className="p-2 -ml-2 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"><ArrowLeft className="h-5 w-5" /></button>
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-xl font-bold tracking-tight text-[#0f172a]">Project Pack Workspace</h1>
-                            {project.url && (
-                                <a 
-                                    href={project.url} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="flex items-center gap-1.5 px-3 py-1 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors"
-                                >
-                                    Planning Portal <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
-                                </a>
-                            )}
-                        </div>
-                        <p className="text-sm text-gray-500 font-medium truncate max-w-md">{project.address}</p>
+            {/* Header - Updated to match project/invoice details style */}
+            <header className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-lg sm:text-xl font-bold text-[#0f172a]">Project Pack Workspace</h3>
+                        {project.url && (
+                            <a 
+                                href={project.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="hidden sm:flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors uppercase tracking-wider"
+                            >
+                                Portal <ExternalLink className="h-3 w-3 text-gray-400" />
+                            </a>
+                        )}
                     </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-xs sm:text-sm text-gray-500 font-medium truncate max-w-[200px] sm:max-w-md">{project.address}</p>
+                        <span className="text-[10px] text-gray-300">•</span>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{project.id}</p>
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                    {project.url && (
+                        <a 
+                            href={project.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="sm:hidden p-2 text-gray-400 hover:text-gray-600"
+                        >
+                            <ExternalLink className="h-5 w-5" />
+                        </a>
+                    )}
+                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
+                        <X className="h-6 w-6" />
+                    </button>
                 </div>
             </header>
 
