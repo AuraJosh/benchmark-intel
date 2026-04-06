@@ -229,30 +229,28 @@ const Invoices = () => {
                 });
             }
 
-            // If this payment completed the WHOLE project, trigger the big celebration & log to Finance
-            if (overallStatus === 'Paid' && !selectedInvoice.revenueLogged) {
+            // ── LOG TO FINANCE 🚀 ──
+            // We now log every payment as it happens, rather than waiting for the whole thing to be finished.
+            try {
+                const projectAddr = getProjectAddress(selectedInvoice.projectId);
+                await addDoc(collection(db, 'fin_revenue'), {
+                    amount: amount, // The ACTUAL amount recorded in this instance
+                    category: 'Commission',
+                    date: new Date().toISOString().slice(0, 10),
+                    description: `Commission — ${projectAddr} (${pKey.toUpperCase()})`,
+                    invoiceId: selectedInvoice.id,
+                    nominalCode: '4000', // Sales/Commission nominal
+                    notes: `Auto-logged payment (${pKey.toUpperCase()}) from Invoice #${selectedInvoice.id.slice(-6).toUpperCase()}`,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                });
+            } catch (err) {
+                console.error("Failed to auto-log revenue portion:", err);
+            }
+
+            // If this payment completed the WHOLE project, trigger the big celebration
+            if (overallStatus === 'Paid') {
                 setShowCompletionBanner(true);
-                
-                // ── LOG TO FINANCE 🚀 ──
-                try {
-                    const projectAddr = getProjectAddress(selectedInvoice.projectId);
-                    await addDoc(collection(db, 'fin_revenue'), {
-                        amount: selectedInvoice.commissionTotal,
-                        category: 'Commission',
-                        date: new Date().toISOString().slice(0, 10),
-                        description: `Commission — ${projectAddr}`,
-                        invoiceId: selectedInvoice.id,
-                        nominalCode: '4000', // Sales/Commission nominal
-                        notes: `Auto-logged from Invoice #${selectedInvoice.id.slice(-6).toUpperCase()}`,
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp()
-                    });
-                    
-                    // Mark as logged to prevent duplicates
-                    await updateDoc(invoiceRef, { revenueLogged: true });
-                } catch (err) {
-                    console.error("Failed to auto-log revenue:", err);
-                }
 
                 // Scroll to top to see the banner
                 if (scrollContainerRef.current) {
