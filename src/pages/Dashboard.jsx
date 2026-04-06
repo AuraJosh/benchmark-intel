@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, onSnapshot, orderBy, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, updateDoc, doc, addDoc, deleteDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Network, Activity, FileSignature, Receipt, Users, Home, Loader2, Bell, EyeOff, Clock, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Network, Activity, FileSignature, Receipt, Users, Home, Loader2, Bell, EyeOff, Clock, CheckCircle2, ChevronLeft, ChevronRight, Plus, X, Calendar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 // Format: 'YYYY-MM-DD'
@@ -59,6 +59,11 @@ const Dashboard = () => {
     const [reminders, setReminders] = useState([]);
     const [showReminders, setShowReminders] = useState(true);
     const [thresholdDays, setThresholdDays] = useState(10);
+    const [customTodos, setCustomTodos] = useState([]);
+    const [showAddTodo, setShowAddTodo] = useState(false);
+    const [newTodoText, setNewTodoText] = useState('');
+    const [newTodoDate, setNewTodoDate] = useState('');
+    const [isSavingTodo, setIsSavingTodo] = useState(false);
 
     useEffect(() => {
         let unsubscribeProjects;
@@ -136,11 +141,23 @@ const Dashboard = () => {
                 setStats(prev => ({ ...prev, unpaidInvoices: unpaid }));
                 setLoading(false);
             });
+
+            const remindersQuery = query(collection(db, 'customReminders'), orderBy('timestamp', 'desc'));
+            const unsubscribeCustomReminders = onSnapshot(remindersQuery, (snapshot) => {
+                const todos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setCustomTodos(todos);
+            });
+
+            return () => {
+                 if (unsubscribeCustomReminders) unsubscribeCustomReminders();
+                 // We'll return this to the outer return
+            };
         };
 
-        fetchData();
+        const cleanup = fetchData();
 
         return () => {
+            if (cleanup) cleanup();
             if (unsubscribeProjects) unsubscribeProjects();
             if (unsubscribeBuilders) unsubscribeBuilders();
             if (unsubscribeContracts) unsubscribeContracts();
@@ -350,6 +367,55 @@ const Dashboard = () => {
             }
         });
 
+        // 4. Check for Custom Reminders (To-Dos)
+        customTodos.forEach(todo => {
+            if (todo.completed) return;
+            
+            let shouldShow = true;
+            let priority = 3; // "Needs Attention" default
+            let statusText = "To Do";
+            let displayDate = todo.date ? (todo.date.toDate ? todo.date.toDate() : new Date(todo.date)) : null;
+
+            if (displayDate) {
+                const dDate = new Date(displayDate);
+                dDate.setHours(0, 0, 0, 0);
+                
+                const dNow = new Date(now);
+                dNow.setHours(0, 0, 0, 0);
+
+                const dayBefore = new Date(dDate);
+                dayBefore.setDate(dayBefore.getDate() - 1);
+                
+                if (dNow < dayBefore) {
+                    shouldShow = false; // Too early
+                } else if (dNow.getTime() === dDate.getTime()) {
+                    statusText = "Due Today";
+                    priority = 2;
+                } else if (dNow > dDate) {
+                    statusText = "Overdue";
+                    priority = 1;
+                } else if (dNow.getTime() === dayBefore.getTime()) {
+                    statusText = "Due Tomorrow";
+                    priority = 2;
+                }
+            }
+
+            if (shouldShow) {
+                // Prevent duplication
+                if (reminderList.some(r => r.id === todo.id)) return;
+
+                reminderList.push({
+                    id: todo.id,
+                    type: 'todo',
+                    contactId: todo.id,
+                    name: todo.text,
+                    status: statusText,
+                    date: displayDate,
+                    priority: priority
+                });
+            }
+        });
+
         // prioritize: Overdue (1), Due Today (2), Inactivity (3)
         reminderList.sort((a, b) => {
             if (a.priority !== b.priority) return a.priority - b.priority;
@@ -357,9 +423,34 @@ const Dashboard = () => {
         });
 
         setReminders(reminderList);
-    }, [projects, builders, interactions, invoices, thresholdDays]);
+    }, [projects, builders, interactions, invoices, thresholdDays, customTodos]);
+
+    const saveTodo = async (e) => {
+        e.preventDefault();
+        if (!newTodoText.trim()) return;
+        setIsSavingTodo(true);
+        try {
+            await addDoc(collection(db, 'customReminders'), {
+                text: newTodoText,
+                date: newTodoDate ? Timestamp.fromDate(new Date(newTodoDate)) : null,
+                completed: false,
+                timestamp: serverTimestamp()
+            });
+            setNewTodoText('');
+            setNewTodoDate('');
+            setShowAddTodo(false);
+        } catch (error) {
+            console.error("Error adding custom reminder:", error);
+        } finally {
+            setIsSavingTodo(false);
+        }
+    };
 
     const clearReminder = async (reminder) => {
+        if (reminder.type === 'todo') {
+            await deleteDoc(doc(db, 'customReminders', reminder.contactId));
+            return;
+        }
         const colName = reminder.type === 'builder' ? 'builders' : 'projects';
         await updateDoc(doc(db, colName, reminder.contactId), {
             reminderClearedAt: new Date()
@@ -367,6 +458,18 @@ const Dashboard = () => {
     };
 
     const snoozeReminder = async (reminder) => {
+        if (reminder.type === 'todo') {
+             // For custom todos, we don't have a specific snooze field, 
+             // but maybe we can update the date to +3 days if it has a date
+             if (reminder.date) {
+                 const newDate = new Date(reminder.date);
+                 newDate.setDate(newDate.getDate() + 3);
+                 await updateDoc(doc(db, 'customReminders', reminder.contactId), {
+                     date: Timestamp.fromDate(newDate)
+                 });
+             }
+             return;
+        }
         const colName = reminder.type === 'builder' ? 'builders' : 'projects';
         const snoozeUntil = new Date();
         snoozeUntil.setDate(snoozeUntil.getDate() + 3);
@@ -429,12 +532,21 @@ const Dashboard = () => {
                                    <span className="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-0.5 rounded-full">{reminders.length}</span>
                                </div>
                                <div className="flex items-center gap-3">
-                                   <select value={thresholdDays} onChange={e => setThresholdDays(Number(e.target.value))} className="text-[10px] font-bold uppercase bg-transparent text-gray-400 px-2 py-1 border-0 cursor-pointer focus:ring-0">
-                                       <option value={3}>3+ Days</option>
-                                       <option value={7}>7+ Days</option>
-                                       <option value={10}>10+ Days</option>
-                                       <option value={15}>15+ Days</option>
-                                   </select>
+                                   <div className="flex items-center gap-1 border-r border-gray-100 pr-3 mr-1">
+                                       <select value={thresholdDays} onChange={e => setThresholdDays(Number(e.target.value))} className="text-[10px] font-bold uppercase bg-transparent text-gray-400 px-2 py-1 border-0 cursor-pointer focus:ring-0">
+                                           <option value={3}>3+ Days</option>
+                                           <option value={7}>7+ Days</option>
+                                           <option value={10}>10+ Days</option>
+                                           <option value={15}>15+ Days</option>
+                                       </select>
+                                       <button 
+                                            onClick={() => setShowAddTodo(true)} 
+                                            className="h-6 w-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 transition-colors"
+                                            title="Add Custom Reminder"
+                                       >
+                                            <Plus className="h-3.5 w-3.5" />
+                                       </button>
+                                   </div>
                                    <button onClick={() => setShowReminders(false)} className="text-[10px] font-bold uppercase text-gray-400 hover:text-gray-900 transition-colors flex items-center gap-1.5"><EyeOff className="h-3 w-3"/> Hide</button>
                                </div>
                           </div>
@@ -455,13 +567,14 @@ const Dashboard = () => {
                                     className="flex gap-4 overflow-x-auto pb-4 pt-1 mini-scroll -mx-1 px-1"
                                 >
                                     {reminders.map(r => (
-                                         <div key={r.id} onClick={() => {
-                                              if (r.type === 'invoice') {
-                                                  navigate(`/invoices?id=${r.contactId}&backTo=/dashboard`);
-                                              } else {
-                                                  navigate(`/correspondence?type=${r.type === 'homeowner' ? 'homeowner' : 'builder'}&id=${r.contactId}`);
-                                              }
-                                         }} className="min-w-[280px] max-w-[280px] flex-shrink-0 bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md group relative flex flex-col min-h-0 overflow-visible cursor-pointer">
+                                          <div key={r.id} onClick={() => {
+                                               if (r.type === 'todo') return; // Don't navigate for to-dos
+                                               if (r.type === 'invoice') {
+                                                   navigate(`/invoices?id=${r.contactId}&backTo=/dashboard`);
+                                               } else {
+                                                   navigate(`/correspondence?type=${r.type === 'homeowner' ? 'homeowner' : 'builder'}&id=${r.contactId}`);
+                                               }
+                                          }} className={`min-w-[280px] max-w-[280px] flex-shrink-0 bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md group relative flex flex-col min-h-0 overflow-visible ${r.type === 'todo' ? 'cursor-default border-l-4 border-l-blue-400' : 'cursor-pointer'}`}>
                                               {/* Circular Icons on the border */}
                                               <div className="absolute -top-2.5 -right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform group-hover:scale-100 scale-90 z-10 pointer-events-none group-hover:pointer-events-auto">
                                                    <button onClick={(e) => { e.stopPropagation(); snoozeReminder(r); }} title="Snooze 3 days" className="h-6 w-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors pointer-events-auto">
@@ -626,6 +739,68 @@ const Dashboard = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Custom Reminder Modal */}
+            {showAddTodo && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                            <h3 className="text-lg font-bold text-gray-900">Custom Reminder</h3>
+                            <button onClick={() => setShowAddTodo(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-colors">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <form onSubmit={saveTodo} className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">To Do Item</label>
+                                <textarea
+                                    value={newTodoText}
+                                    onChange={(e) => setNewTodoText(e.target.value)}
+                                    placeholder="Enter your reminder here..."
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all min-h-[100px] resize-none"
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Due Date (Optional)</label>
+                                <div className="relative">
+                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                                        <Calendar className="h-4 w-4" />
+                                    </div>
+                                    <input
+                                        type="date"
+                                        value={newTodoDate}
+                                        onChange={(e) => setNewTodoDate(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-gray-500 mt-2 italic font-medium">If set, this will appear in 'Needs Attention' starting 1 day before.</p>
+                            </div>
+                            <div className="pt-2 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddTodo(false)}
+                                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-200 transition-all border border-gray-200"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSavingTodo}
+                                    className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-200 flex items-center justify-center gap-2 group"
+                                >
+                                    {isSavingTodo ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                                        <>
+                                            Save Reminder
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
