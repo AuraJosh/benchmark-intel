@@ -775,23 +775,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                     {/* RIGHT PANEL: Controls & Files (1/3 width) */}
                     <div className="flex flex-col gap-6 order-1 lg:order-2 lg:h-[700px]">
                         
-                        {/* Custom ID Box */}
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Project Vault ID</label>
-                            <div className="flex items-center gap-2">
-                                <input 
-                                    type="text" 
-                                    readOnly 
-                                    value={project.customId || 'No ID Generated'} 
-                                    className="flex-1 bg-gray-50 border border-gray-100 text-gray-600 text-[13px] font-mono px-3 py-1.5 rounded outline-none"
-                                />
-                                {project.customId && (
-                                    <button onClick={() => { navigator.clipboard.writeText(project.customId); alert("Copied!"); }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Copy ID">
-                                        <Copy className="h-3.5 w-3.5" />
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                        {/* Action Bar (Compact) */}
 
                         {/* Action Bar (Compact) */}
                         <div className="grid grid-cols-2 gap-3">
