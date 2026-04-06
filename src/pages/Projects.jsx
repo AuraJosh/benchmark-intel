@@ -55,9 +55,10 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
             if (popupExistingRouteId) {
                 await updateDoc(doc(db, 'routes', popupExistingRouteId), { projectIds: arrayUnion(project.id) });
                 setAdded(true);
-                setTimeout(() => onNavigate(`/routing?id=${popupExistingRouteId}`), 800);
+                // No redirect for single additions
+                setTimeout(() => { setAdded(false); setShowOptions(false); }, 2000);
             } else if (popupRouteDate) {
-                const docRef = await addDoc(collection(db, 'routes'), {
+                await addDoc(collection(db, 'routes'), {
                     date: popupRouteDate,
                     projectIds: [project.id],
                     assignedTo: '',
@@ -66,7 +67,7 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
                     timestamp: serverTimestamp()
                 });
                 setAdded(true);
-                setTimeout(() => onNavigate(`/routing?id=${docRef.id}`), 800);
+                setTimeout(() => { setAdded(false); setShowOptions(false); }, 2000);
             }
         } catch (e) {
             console.error(e);
@@ -133,7 +134,9 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
                     </div>
                 </div>
             )}
-            {added && <p className="text-[11px] text-emerald-600 font-bold text-center mt-1 py-1 bg-emerald-50 rounded">Redirecting...</p>}
+            {added && <p className="text-[11px] text-emerald-600 font-bold text-center mt-1 py-1.5 bg-emerald-50 rounded flex items-center justify-center gap-2 animate-in zoom-in-95 duration-300">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Added to Route Successfully!
+            </p>}
         </div>
     );
 };
