@@ -1012,48 +1012,67 @@ const Projects = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 bg-gray-50 p-6 rounded-xl border border-gray-100 relative">
-                                    <div className="absolute top-4 right-4 flex gap-2">
+                                <div className="bg-gray-50 p-6 rounded-xl border border-gray-100">
+                                    {/* Action Bar - Now non-absolute to prevent overlapping */}
+                                    <div className="flex flex-wrap items-center justify-end gap-2 mb-6 border-b border-gray-200 pb-4">
                                         <button
-                                            onClick={() => {
-                                                setViewMode('map');
-                                                // The map will auto-center because of our change to MapContainer
-                                            }}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm"
+                                            onClick={() => setViewMode('map')}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors"
                                         >
                                             <MapIcon className="h-3.5 w-3.5 text-blue-500" /> View on Map
                                         </button>
-                                            <a href={activeProject.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm">
-                                                Portal <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
-                                            </a>
-                                            <button 
-                                                onClick={() => openWorkspace(activeProject.id)}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#0f172a] border border-transparent rounded-lg text-white hover:bg-black shadow-sm"
-                                            >
-                                                Open Workspace <ChevronRight className="h-3.5 w-3.5 text-white/70" />
-                                            </button>
-                                            <button 
-                                                onClick={() => {
-                                                    const path = hasCorrespondence 
-                                                        ? `/correspondence?type=homeowner&id=${activeProject.id}` 
-                                                        : '/correspondence';
-                                                    navigate(path);
-                                                }}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm"
-                                            >
-                                                <MessageSquare className="h-3.5 w-3.5 text-blue-500" /> Correspondence
-                                            </button>
+                                        <button 
+                                            onClick={() => {
+                                                const path = hasCorrespondence 
+                                                    ? `/correspondence?type=homeowner&id=${activeProject.id}` 
+                                                    : '/correspondence';
+                                                navigate(path);
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors"
+                                        >
+                                            <MessageSquare className="h-3.5 w-3.5 text-blue-500" /> Correspondence
+                                        </button>
+                                        <a href={activeProject.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors">
+                                            Portal <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
+                                        </a>
+                                        <button 
+                                            onClick={() => openWorkspace(activeProject.id)}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#0f172a] border border-transparent rounded-lg text-white hover:bg-black shadow-sm transition-colors"
+                                        >
+                                            Open Workspace <ChevronRight className="h-3.5 w-3.5 text-white/70" />
+                                        </button>
+                                    </div>
+
+                                    {/* Project Meta Data Grid */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4">
+                                        <div className="col-span-2 bg-white/50 p-3 rounded-lg border border-gray-200">
+                                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Applicant</h3>
+                                            <p className="mt-1 text-sm font-bold text-gray-900 truncate" title={activeProject.applicantName || 'N/A'}>
+                                                {activeProject.applicantName || 'N/A'}
+                                            </p>
                                         </div>
-                                    <div className="md:col-span-3 pb-2 border-b border-gray-200 mb-2">
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                                            <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Reference</h3><p className="mt-1 text-sm font-semibold text-gray-900">{activeProject.reference || 'N/A'}</p></div>
-                                            <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">App Status</h3><p className="mt-1 text-sm font-semibold text-gray-900">{activeProject.applicationStatus || 'N/A'}</p></div>
-                                            <div className="md:col-span-2"><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Applicant</h3><p className="mt-1 text-sm font-semibold text-gray-900">{activeProject.applicantName || 'N/A'}</p></div>
+                                        <div className="bg-white/50 p-3 rounded-lg border border-gray-200">
+                                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Reference</h3>
+                                            <p className="mt-1 text-sm font-semibold text-gray-900 truncate">{activeProject.reference || 'N/A'}</p>
+                                        </div>
+                                        <div className="bg-white/50 p-3 rounded-lg border border-gray-200">
+                                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">App Status</h3>
+                                            <p className="mt-1 text-sm font-semibold text-gray-900 truncate">{activeProject.applicationStatus || 'N/A'}</p>
+                                        </div>
+
+                                        <div className="pt-2">
+                                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Received</h3>
+                                            <p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateReceived ? new Date(activeProject.dateReceived).toLocaleDateString() : 'N/A'}</p>
+                                        </div>
+                                        <div className="pt-2">
+                                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Validated</h3>
+                                            <p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateValidated ? new Date(activeProject.dateValidated).toLocaleDateString() : 'N/A'}</p>
+                                        </div>
+                                        <div className="pt-2">
+                                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Decided</h3>
+                                            <p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateDecided ? new Date(activeProject.dateDecided).toLocaleDateString() : 'N/A'}</p>
                                         </div>
                                     </div>
-                                    <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Received</h3><p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateReceived ? new Date(activeProject.dateReceived).toLocaleDateString() : 'N/A'}</p></div>
-                                    <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Validated</h3><p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateValidated ? new Date(activeProject.dateValidated).toLocaleDateString() : 'N/A'}</p></div>
-                                    <div><h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Decided</h3><p className="mt-1 text-sm font-medium text-gray-700">{activeProject.dateDecided ? new Date(activeProject.dateDecided).toLocaleDateString() : 'N/A'}</p></div>
                                 </div>
 
                                 <div className="bg-emerald-50/50 p-6 border border-emerald-100 rounded-xl space-y-4">
