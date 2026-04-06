@@ -318,6 +318,37 @@ export async function runScraper(targetWeekOverride = null) {
                         dateDecided: decidedDate.toISOString(),
                         url: detailUrl,
                     };
+
+                    // Also try geocoding existing projects if coordinates are missing
+                    if (!existing.coordinates || !existing.coordinates.lat || !existing.coordinates.lng) {
+                        try {
+                            const fullAddr = `${appInfo.addr}, York, UK`;
+                            let geoResponse = await axios.get(
+                                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddr)}&limit=1`,
+                                { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
+                            ).catch(() => ({ data: [] }));
+
+                            if (!geoResponse.data || geoResponse.data.length === 0) {
+                                const components = appInfo.addr.split(',');
+                                if (components.length > 1) {
+                                    const fuzzyAddr = `${components.slice(-2).join(',').trim()}, UK`;
+                                    geoResponse = await axios.get(
+                                        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fuzzyAddr)}&limit=1`,
+                                        { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
+                                    ).catch(() => ({ data: [] }));
+                                }
+                            }
+
+                            if (geoResponse.data && geoResponse.data.length > 0) {
+                                updatePayload.coordinates = {
+                                    lat: parseFloat(geoResponse.data[0].lat),
+                                    lng: parseFloat(geoResponse.data[0].lon),
+                                };
+                                console.log(`[${keyVal}] Re-geocoded existing project: ${geoResponse.data[0].lat}, ${geoResponse.data[0].lon}`);
+                            }
+                        } catch (err) { }
+                    }
+
                     await docRef.update(updatePayload);
                     stats.existing++;
                 } else {
@@ -338,20 +369,39 @@ export async function runScraper(targetWeekOverride = null) {
                     };
 
                     try {
-                        const encoded = encodeURIComponent(`${appInfo.addr}, York, UK`);
-                        const geo = await axios.get(
-                            `https://nominatim.openstreetmap.org/search?format=json&q=${encoded}&limit=1`,
+                        const fullAddr = `${appInfo.addr}, York, UK`;
+                        console.log(`[${keyVal}] Geocoding attempt 1 (Full): ${fullAddr}`);
+                        
+                        let geoResponse = await axios.get(
+                            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddr)}&limit=1`,
                             { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
-                        );
-                        if (geo.data && geo.data.length > 0) {
+                        ).catch(() => ({ data: [] }));
+
+                        // --- FUZZY RETRY: If full address fails, try stripping building/flat info to get the street ---
+                        if (!geoResponse.data || geoResponse.data.length === 0) {
+                            const components = appInfo.addr.split(',');
+                            if (components.length > 1) {
+                                // Take the last two parts (usually Street and York/Postcode)
+                                const fuzzyAddr = `${components.slice(-2).join(',').trim()}, UK`;
+                                console.log(`[${keyVal}] Geocoding attempt 2 (Fuzzy): ${fuzzyAddr}`);
+                                geoResponse = await axios.get(
+                                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fuzzyAddr)}&limit=1`,
+                                    { headers: { 'User-Agent': 'BenchmarkIntel/1.0 (josh.witte.business@gmail.com)' }, timeout: 8000 }
+                                ).catch(() => ({ data: [] }));
+                            }
+                        }
+
+                        if (geoResponse.data && geoResponse.data.length > 0) {
                             projectData.coordinates = {
-                                lat: parseFloat(geo.data[0].lat),
-                                lng: parseFloat(geo.data[0].lon),
+                                lat: parseFloat(geoResponse.data[0].lat),
+                                lng: parseFloat(geoResponse.data[0].lon),
                             };
-                            console.log(`[${keyVal}] Geocoded: ${geo.data[0].lat}, ${geo.data[0].lon}`);
+                            console.log(`[${keyVal}] SUCCESS: Geocoded to ${geoResponse.data[0].lat}, ${geoResponse.data[0].lon}`);
+                        } else {
+                            console.warn(`[${keyVal}] FAILED: Could not find coordinates for "${appInfo.addr}"`);
                         }
                     } catch (geoErr) {
-                        console.warn(`[${keyVal}] Geocoding failed: ${geoErr.message}`);
+                        console.warn(`[${keyVal}] Geocoding Error: ${geoErr.message}`);
                     }
 
                     await docRef.set(projectData);
