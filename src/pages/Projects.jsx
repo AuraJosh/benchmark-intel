@@ -41,13 +41,13 @@ const generateWBDates = (weeksBack = 52) => {
 };
 
 // Self-contained popup component so each pin has independent route picker state
-const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
+const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate, isSelected, onToggleSelection }) => {
     const [popupRouteDate, setPopupRouteDate] = useState('');
     const [popupExistingRouteId, setPopupExistingRouteId] = useState('');
     const [adding, setAdding] = useState(false);
     const [added, setAdded] = useState(false);
 
-    const handleAdd = async () => {
+    const handleAddSingle = async () => {
         if (!popupRouteDate && !popupExistingRouteId) return;
         setAdding(true);
         try {
@@ -77,53 +77,60 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
     };
 
     return (
-        <div className="space-y-2" style={{ minWidth: 210 }}>
-            <p className="font-bold text-sm text-[#0f172a] leading-tight">{project.address}</p>
-            <p className="text-xs text-gray-500">{project.status}</p>
-            {project.description && <p className="text-xs text-gray-600 line-clamp-2">{project.description}</p>}
-
-            <div className="border-t border-gray-100 pt-2 space-y-1.5">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Add to Route</p>
-                <select
-                    value={popupExistingRouteId}
-                    onChange={e => { setPopupExistingRouteId(e.target.value); if (e.target.value) setPopupRouteDate(''); }}
-                    className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                >
-                    <option value="">Select existing route...</option>
-                    {routesList.map(r => (
-                        <option key={r.id} value={r.id}>
-                            {r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown Date'}
-                            {r.assignedTo ? ` — ${r.assignedTo}` : ''}
-                        </option>
-                    ))}
-                </select>
-                <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-                    <div className="flex-1 h-px bg-gray-100" /> or new date <div className="flex-1 h-px bg-gray-100" />
+        <div className="space-y-4" style={{ minWidth: 230 }}>
+            <div>
+                <p className="font-bold text-sm text-[#0f172a] leading-tight">{project.address}</p>
+                <div className="flex gap-2 mt-1">
+                    <StatusBadge status={project.status} />
+                    <button onClick={onOpenProject} className="text-[11px] text-blue-600 font-bold hover:underline">View Project →</button>
                 </div>
-                <input
-                    type="date"
-                    value={popupRouteDate}
-                    onChange={e => { setPopupRouteDate(e.target.value); if (e.target.value) setPopupExistingRouteId(''); }}
-                    className="w-full rounded border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-                />
-                <button
-                    onClick={handleAdd}
-                    disabled={adding || added || (!popupRouteDate && !popupExistingRouteId)}
-                    className={`w-full py-1.5 rounded text-xs font-bold transition-all flex items-center justify-center gap-1.5
-                        ${added ? 'bg-green-500 text-white' : 'bg-[#0f172a] text-white hover:bg-black disabled:opacity-40'}`}
-                >
-                    {added ? <><CheckCircle2 className="h-3 w-3" /> Added! Navigating...</> :
-                     adding ? <><Loader2 className="h-3 w-3 animate-spin" /> Adding...</> :
-                     <><MapPin className="h-3 w-3" /> Add to Route</>}
-                </button>
             </div>
 
-            <button
-                onClick={onOpenProject}
-                className="w-full text-[11px] text-blue-600 font-semibold hover:underline text-left pt-1"
-            >
-                View full project details →
-            </button>
+            {project.description && (
+                <p className="text-xs text-gray-500 line-clamp-2 italic border-l-2 border-gray-100 pl-2">
+                    {project.description}
+                </p>
+            )}
+
+            <div className="bg-gray-50 -mx-4 px-4 py-3 border-y border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Route Builder</p>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={isSelected}
+                            onChange={onToggleSelection}
+                        />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                        <span className="ml-2 text-xs font-bold text-gray-700">{isSelected ? 'Selected' : 'Select'}</span>
+                    </label>
+                </div>
+                
+                {!isSelected && !added && (
+                    <div className="space-y-2 mt-2 pt-2 border-t border-gray-200/50">
+                        <p className="text-[9px] text-gray-400 font-medium">Or add instantly:</p>
+                        <select
+                            value={popupExistingRouteId}
+                            onChange={e => { setPopupExistingRouteId(e.target.value); if (e.target.value) setPopupRouteDate(''); }}
+                            className="w-full rounded border border-gray-200 px-2 py-1 text-[11px] focus:outline-none bg-white"
+                        >
+                            <option value="">Existing route...</option>
+                            {routesList.map(r => (
+                                <option key={r.id} value={r.id}>{r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown'}</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={handleAddSingle}
+                            disabled={adding || (!popupRouteDate && !popupExistingRouteId && !popupRouteDate)}
+                            className="w-full py-1 text-[11px] bg-white border border-gray-200 rounded font-bold hover:bg-gray-50 disabled:opacity-30"
+                        >
+                            {adding ? 'Adding...' : 'Direct Add'}
+                        </button>
+                    </div>
+                )}
+                {added && <p className="text-xs text-emerald-600 font-bold text-center">Added to route!</p>}
+            </div>
         </div>
     );
 };
@@ -905,10 +912,11 @@ const Projects = () => {
                                     html: `<div style="
                                         width:28px;height:28px;border-radius:50% 50% 50% 0;
                                         transform:rotate(-45deg);
-                                        background:${isSelected ? '#16a34a' : '#0284c7'};
+                                        background:${isSelected ? '#10b981' : '#0284c7'};
                                         border:2px solid white;
                                         box-shadow:0 2px 6px rgba(0,0,0,0.3);
                                         display:flex;align-items:center;justify-content:center;
+                                        transition: all 0.3s ease;
                                     "><div style="transform:rotate(45deg);color:white;font-size:10px;font-weight:bold;margin-top:2px;">${isSelected ? '✓' : ''}</div></div>`,
                                     iconSize: [28, 28],
                                     iconAnchor: [14, 28],
@@ -919,39 +927,31 @@ const Projects = () => {
                                         key={project.id}
                                         position={[project.coordinates.lat, project.coordinates.lng]}
                                         icon={icon}
-                                        eventHandlers={{
-                                            click: () => mapRouteMode ? toggleMapPin(project.id) : null
-                                        }}
                                     >
-                                        {!mapRouteMode && (
-                                            <Popup minWidth={220}>
-                                                <MapPinPopup
-                                                    project={project}
-                                                    routesList={routesList}
-                                                    onOpenProject={() => openProject(project)}
-                                                    onNavigate={navigate}
-                                                />
-                                            </Popup>
-                                        )}
+                                        <Popup minWidth={250}>
+                                            <MapPinPopup
+                                                project={project}
+                                                routesList={routesList}
+                                                onOpenProject={() => openProject(project)}
+                                                onNavigate={navigate}
+                                                isSelected={isSelected}
+                                                onToggleSelection={() => toggleMapPin(project.id)}
+                                            />
+                                        </Popup>
                                     </Marker>
                                 );
                             })}
                         </MapContainer>
 
-                        {/* Route Mode instruction banner */}
-                        {mapRouteMode && mapSelectedIds.length === 0 && (
-                            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg flex items-center gap-2 pointer-events-none">
-                                <NavIcon className="h-3.5 w-3.5" />
-                                Click pins to select stops for your route
-                            </div>
-                        )}
-
-                        {/* Floating action bar — slides up when pins are selected */}
-                        {mapRouteMode && mapSelectedIds.length > 0 && (
+                        {/* Floating action bar — slides up ONLY when pins are selected */}
+                        {mapSelectedIds.length > 0 && (
                             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 flex flex-col gap-3 animate-in slide-in-from-bottom-4 duration-200" style={{ minWidth: 320 }}>
                                 <div className="flex items-center justify-between">
-                                    <p className="text-sm font-bold text-[#0f172a]">{mapSelectedIds.length} stop{mapSelectedIds.length !== 1 ? 's' : ''} selected</p>
-                                    <button onClick={() => setMapSelectedIds([])} className="text-xs text-gray-400 hover:text-gray-600 font-medium">Clear</button>
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-6 w-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs font-bold">{mapSelectedIds.length}</div>
+                                        <p className="text-sm font-bold text-[#0f172a]">Stop{mapSelectedIds.length !== 1 ? 's' : ''} Selected</p>
+                                    </div>
+                                    <button onClick={() => setMapSelectedIds([])} className="text-xs text-gray-400 hover:text-gray-600 font-medium">Clear All</button>
                                 </div>
                                 <div className="flex gap-2">
                                     <select
@@ -959,10 +959,10 @@ const Projects = () => {
                                         onChange={e => { setMapExistingRouteId(e.target.value); if (e.target.value) setMapRouteDate(''); }}
                                         className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
                                     >
-                                        <option value="">Add to existing route...</option>
+                                        <option value="">Existing route...</option>
                                         {routesList.map(r => (
                                             <option key={r.id} value={r.id}>
-                                                {r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown'}{r.assignedTo ? ` — ${r.assignedTo}` : ''}
+                                                {r.date ? new Date(r.date).toLocaleDateString('en-GB') : 'Unknown'}
                                             </option>
                                         ))}
                                     </select>
@@ -971,15 +971,14 @@ const Projects = () => {
                                         value={mapRouteDate}
                                         onChange={e => { setMapRouteDate(e.target.value); if (e.target.value) setMapExistingRouteId(''); }}
                                         className="rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                                        title="Or create a new route with this date"
                                     />
                                 </div>
                                 <button
                                     onClick={handleMapBatchRoute}
                                     disabled={mapRouteAdding || (!mapRouteDate && !mapExistingRouteId)}
-                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 shadow-lg shadow-emerald-200"
                                 >
-                                    {mapRouteAdding ? <><Loader2 className="h-4 w-4 animate-spin" /> Adding to route...</> : <><MapPin className="h-4 w-4" /> Add {mapSelectedIds.length} stop{mapSelectedIds.length !== 1 ? 's' : ''} to Route</>}
+                                    {mapRouteAdding ? <><Loader2 className="h-4 w-4 animate-spin" /> Finalizing...</> : <><MapPin className="h-4 w-4" /> Add {mapSelectedIds.length} Stop{mapSelectedIds.length !== 1 ? 's' : ''} to Route</>}
                                 </button>
                             </div>
                         )}
