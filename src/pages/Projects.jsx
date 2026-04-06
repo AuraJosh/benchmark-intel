@@ -76,7 +76,13 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
     };
 
     return (
-        <div className="flex flex-col gap-1.5" style={{ minWidth: 200 }}>
+        <div 
+            className="flex flex-col gap-1.5" 
+            style={{ minWidth: 200 }}
+            onClick={(e) => e.stopPropagation()} // Stop click from leaking to the map
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+        >
             <div>
                 <p className="font-bold text-[13px] text-[#0f172a] leading-tight mb-0.5">{project.address}</p>
                 <div className="flex items-center gap-2">
@@ -176,7 +182,10 @@ const MapDisplay = memo(({ filteredProjects, mapSelectedIds, toggleMapPin, route
                             <MapPinPopup
                                 project={project}
                                 routesList={routesList}
-                                onOpenProject={() => openProject(project)}
+                                onOpenProject={(e) => { 
+                                    if (e) e.stopPropagation(); 
+                                    openProject(project); 
+                                }}
                                 onNavigate={navigate}
                             />
                         </Popup>
@@ -409,6 +418,8 @@ const Projects = () => {
         if (backTo) {
             navigate(backTo);
         } else {
+            // Explicitly go back to projects list (Overview)
+            navigate('/projects'); 
             setSearchParams({});
         }
     };
