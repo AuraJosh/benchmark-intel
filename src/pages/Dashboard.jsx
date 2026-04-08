@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, addDoc, deleteDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
-import { Network, Activity, FileSignature, Receipt, Users, Home, Loader2, Bell, EyeOff, Clock, CheckCircle2, ChevronLeft, ChevronRight, Plus, X, Calendar } from 'lucide-react';
+import { db, auth } from '../firebase';
+import { Network, Activity, FileSignature, Receipt, Users, Home, Loader2, Bell, EyeOff, Clock, CheckCircle2, ChevronLeft, ChevronRight, Plus, X, Calendar, Rocket } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 // Format: 'YYYY-MM-DD'
@@ -500,6 +500,29 @@ const Dashboard = () => {
         );
     }
 
+    const handleTestPush = async () => {
+        if (!auth.currentUser) {
+            alert("Please log in to register your device.");
+            return;
+        }
+        try {
+            const response = await fetch('https://europe-west2-benchmark-intel-3ea4a.cloudfunctions.net/testPushNotification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uid: auth.currentUser.uid })
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert(`Test signal sent to ${result.tokenCount} devices!`);
+            } else {
+                alert("No phone ID found for your account. Try refreshing the app first.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Technical error: Is your phone's ID registered?");
+        }
+    };
+
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
             <header className="mb-3 md:mb-4 flex flex-row items-center justify-between gap-2 shrink-0">
@@ -507,6 +530,34 @@ const Dashboard = () => {
                     <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#0f172a]">Dashboard</h1>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button 
+                        onClick={handleTestPush}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] font-bold text-indigo-700 hover:bg-indigo-100 transition-all shadow-sm"
+                    >
+                        <Rocket className="h-3.5 w-3.5" />
+                        Test Push
+                    </button>
+                    {typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission !== 'granted' && (
+                        <button 
+                            onClick={async () => {
+                                try {
+                                    const permission = await window.Notification.requestPermission();
+                                    if (permission === 'granted') {
+                                        window.location.reload(); 
+                                    } else {
+                                        alert("Notifications were blocked. Please enable them in your phone settings.");
+                                    }
+                                } catch (e) {
+                                    console.error("Failed to request permission", e);
+                                    alert("Your device doesn't support this notification type.");
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px] font-bold text-amber-700 hover:bg-amber-100 transition-all shadow-sm"
+                        >
+                            <Bell className="h-3.5 w-3.5 animate-bounce" />
+                            Enable Notifications
+                        </button>
+                    )}
                     {!showReminders && reminders.length > 0 && (
                         <button onClick={() => setShowReminders(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-[11px] font-bold text-blue-600 hover:bg-blue-100 transition-all shadow-sm">
                             <Bell className="h-3.5 w-3.5" />
@@ -679,7 +730,7 @@ const Dashboard = () => {
                             </div>
                         </div>
                         <div className="flex-1 w-full relative min-h-0">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                 <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                     <XAxis
@@ -707,7 +758,7 @@ const Dashboard = () => {
                     <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col items-center min-h-[350px] md:min-h-0">
                         <h3 className="text-xs font-bold mb-2 uppercase tracking-wider text-gray-400 w-full text-left shrink-0">Project Breakdown</h3>
                         <div className="flex-1 w-full relative flex items-center justify-center min-h-0">
-                            <ResponsiveContainer width="100%" height="100%">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                 <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                                     <Pie
                                         data={pieData}

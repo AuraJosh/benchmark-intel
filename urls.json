@@ -1,0 +1,38 @@
+[
+  {
+    "id": "dailySummary9am",
+    "url": "no_url"
+  },
+  {
+    "id": "initializeWorkspace",
+    "url": "no_url"
+  },
+  {
+    "id": "notifyOnFollowUpSet",
+    "url": "no_url"
+  },
+  {
+    "id": "scheduledSync",
+    "url": "no_url"
+  },
+  {
+    "id": "scraper",
+    "url": "no_url"
+  },
+  {
+    "id": "signContract",
+    "url": "no_url"
+  },
+  {
+    "id": "testPushNotification",
+    "url": "no_url"
+  },
+  {
+    "id": "uploadFiles",
+    "url": "no_url"
+  },
+  {
+    "id": "uploadToDrive",
+    "url": "no_url"
+  }
+]

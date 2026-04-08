@@ -631,7 +631,7 @@ const Correspondence = () => {
     const [isClosing, setIsClosing] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
-    const [mode, setMode] = useState('homeowner');
+    const [mode, setMode] = useState('builder');
     const [showSelector, setShowSelector] = useState(false);
 
     // switch animation

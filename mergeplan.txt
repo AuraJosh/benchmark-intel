@@ -1,0 +1,59 @@
+BENCHMARK INTELLIGENCE DATA MIGRATION & MERGE PLAN
+===================================================
+
+Goal: Migrate all data from Project A (benchmark-intelligence-a5b7c) to Project B (benchmark-intel-3ea4a) securely without data loss or service disruption.
+
+1. DATA SCOPE
+-------------
+We will migrate the following core components:
+- AUTHENTICATION: All user accounts (Emails, Passwords, UIDs).
+- FIRESTORE: All document collections and deep sub-collections.
+- STORAGE: All stored files (images, assets, project packs).
+
+2. PHASE 1: PREPARATION & BACKUP (Z-Index: 100)
+-----------------------------------------------
+- Step 1.1: Verify Service Account permissions (Owner/Editor) for both projects.
+- Step 1.2: Establish a local "Snapshot" directory.
+- Step 1.3: Run a 'Scan Only' script to map out all active collections and estimate data size.
+  *Expected collections: projects, builders, correspondence, assignments, agreements, invoices, customReminders, revenue, expenses.*
+
+3. PHASE 2: AUTHENTICATION (The "UID Link")
+-------------------------------------------
+- Why: Firestore documents often use user UIDs as keys or foreign keys. We must move users FIRST to maintain these links.
+- Tool: Firebase CLI (Auth Export/Import).
+- Safeguard: Password hashes are transferred using the developer-specific hashing parameters to ensure existing passwords continue to work.
+
+4. PHASE 3: FIRESTORE MIGRATION
+-------------------------------
+- Method: Recursive Admin SDK Copy Script.
+- Mode: "Safe Merge".
+  - If a document with the same ID exists in Project B, we will compare the 'updatedAt' field (if exists) or skip it to avoid overwriting newer data.
+  - Sub-collections (e.g. correspondence/interactions) will be traversed recursively to ensure no nested data is left behind.
+- Logging: Every document transfer is logged to `migration_log.json`.
+
+5. PHASE 4: STORAGE (ASSETS)
+----------------------------
+- Step: Download files from 'benchmark-intelligence-a5b7c.appspot.com' and upload to 'benchmark-intel-3ea4a.appspot.com'.
+- Note: We will preserve the exact folder structure so that links in Firestore remain valid when the app starts using the new bucket.
+
+6. PHASE 5: VERIFICATION & SMOKE TEST
+-------------------------------------
+- Step 5.1: Database Count Check (Compare record counts between projects).
+- Step 5.2: User Auth Test (Login with a known user account).
+- Step 5.3: Data Integrity Test (Open a project detail page to ensure interactions and invoices are linked).
+
+7. ROLLBACK STRATEGY
+--------------------
+- Project A remains untouched. If Project B becomes unstable, we can revert the application config to point back to Project A immediately.
+- We will NOT delete Project A data until 30 days after a successful migration.
+
+8. TIMELINE
+-----------
+1. [ ] Planning & Scripting: ~1 hour
+2. [ ] Auth Migration: ~10 minutes
+3. [ ] Firestore Migration: ~30-60 minutes (depending on volume)
+4. [ ] Storage Migration: ~30 minutes
+5. [ ] Final Sync: 10 minutes (to catch data created during the move)
+
+[AUTHOR: Antigravity AI]
+[STATUS: READY FOR REVIEW]

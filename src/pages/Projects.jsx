@@ -1,5 +1,5 @@
 import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive, Package, UploadCloud, File, Trash2, MessageSquare, Navigation as NavIcon } from 'lucide-react';
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, where, writeBatch, limit, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -12,6 +12,7 @@ import StatusBadge from '../components/StatusBadge';
 import { generateCustomProjectId } from '../utils/projectIds';
 import PackWorkspace from './PackWorkspace';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { openExternalLink } from '../utils/opener';
 
 // Fix for default marker icons in React Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -100,14 +101,26 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
             onDoubleClick={(e) => e.stopPropagation()}
         >
             <div>
-                <p className="font-bold text-[13px] text-[#0f172a] leading-tight mb-0.5">{project.address}</p>
+                <button 
+                    onClick={() => onOpenProject()}
+                    className="font-bold text-[13px] text-[#0f172a] leading-tight mb-0.5 text-left hover:text-blue-600 transition-colors block w-full"
+                >
+                    {project.address}
+                </button>
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-gray-400">{project.status}</span>
-                    <button onClick={onOpenProject} className="text-[10px] text-blue-600 font-bold hover:underline">View →</button>
+                    <button onClick={() => onOpenProject()} className="text-[10px] text-blue-600 font-bold hover:underline">View Details →</button>
                     {project.url && (
-                        <a href={project.url} target="_blank" rel="noopener noreferrer" className="text-gray-400">
-                             <ExternalLink className="h-2.5 w-2.5" />
-                        </a>
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                openExternalLink(project.url); 
+                            }} 
+                            className="text-gray-400 hover:text-blue-500 transition-colors ml-auto"
+                            title="Open Planning Portal"
+                        >
+                             <ExternalLink className="h-3 w-3" />
+                        </button>
                     )}
                 </div>
             </div>
@@ -163,7 +176,7 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
 };
 
 // Memoized Map to prevent auto-closing popups on project list updates
-const MapDisplay = memo(({ filteredProjects, mapSelectedIds, toggleMapPin, routesList, openProject, navigate }) => {
+const MapDisplay = memo(({ filteredProjects, mapSelectedIds, toggleMapPin, routesList, openProject, navigate, mapRouteMode }) => {
     return (
         <MapContainer
             center={[53.9591, -1.0815]}
@@ -193,18 +206,30 @@ const MapDisplay = memo(({ filteredProjects, mapSelectedIds, toggleMapPin, route
                         key={project.id}
                         position={[project.coordinates.lat, project.coordinates.lng]}
                         icon={icon}
+                        eventHandlers={{
+                            click: (e) => {
+                                if (mapRouteMode) {
+                                    // Prevent popup from opening when in route mode if you want, 
+                                    // but Leaflet opens popups by default on Marker click.
+                                    // We'll toggle the pin here.
+                                    toggleMapPin(project.id);
+                                }
+                            }
+                        }}
                     >
-                        <Popup minWidth={250}>
-                            <MapPinPopup
-                                project={project}
-                                routesList={routesList}
-                                onOpenProject={(e) => { 
-                                    if (e) e.stopPropagation(); 
-                                    openProject(project); 
-                                }}
-                                onNavigate={navigate}
-                            />
-                        </Popup>
+                        {!mapRouteMode && (
+                            <Popup minWidth={250}>
+                                <MapPinPopup
+                                    project={project}
+                                    routesList={routesList}
+                                    onOpenProject={(e) => { 
+                                        if (e) e.stopPropagation(); 
+                                        openProject(project); 
+                                    }}
+                                    onNavigate={navigate}
+                                />
+                            </Popup>
+                        )}
                     </Marker>
                 );
             })}
@@ -289,9 +314,9 @@ const Projects = () => {
         setMapExistingRouteId('');
     };
 
-    const toggleMapPin = (id) => {
+    const toggleMapPin = useCallback((id) => {
         setMapSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-    };
+    }, []);
 
     const handleMapBatchRoute = async () => {
         if (mapSelectedIds.length === 0 || (!mapRouteDate && !mapExistingRouteId)) return;
@@ -403,9 +428,9 @@ const Projects = () => {
         return () => unsubscribe();
     }, [selectedProject?.id]);
 
-    const openProject = (project) => {
+    const openProject = useCallback((project) => {
         setSearchParams({ id: project.id });
-    };
+    }, [setSearchParams]);
 
     const openWorkspace = (projectId) => {
         setSearchParams({ id: projectId, workspace: 'true' });
@@ -541,6 +566,17 @@ const Projects = () => {
         } catch (error) {
             console.error("Error updating project:", error);
             alert("Failed to save project details.");
+        }
+    };
+
+    const toggleBuilderAvailability = async (builderId, currentAvailability) => {
+        try {
+            const builderRef = doc(db, 'builders', builderId);
+            await updateDoc(builderRef, {
+                availability: !currentAvailability
+            });
+        } catch (error) {
+            console.error("Error updating builder availability:", error);
         }
     };
 
@@ -985,6 +1021,7 @@ const Projects = () => {
                             routesList={routesList}
                             openProject={openProject}
                             navigate={navigate}
+                            mapRouteMode={mapRouteMode}
                         />
 
                         {/* Floating action bar — slides up ONLY when pins are selected */}
@@ -1425,8 +1462,10 @@ const Projects = () => {
                                                 className="block w-full rounded-md border-gray-300 text-sm focus:border-[#0f172a] focus:ring-[#0f172a] border"
                                             >
                                                 <option value="" disabled>Select builder to add...</option>
-                                                {builders.filter(b => b.availability).map(b => (
-                                                    <option key={b.id} value={b.id}>{b.companyName}</option>
+                                                {builders.map(b => (
+                                                    <option key={b.id} value={b.id}>
+                                                        {b.companyName} {!b.availability ? '(Unavailable)' : ''}
+                                                    </option>
                                                 ))}
                                             </select>
                                             <button
@@ -1443,18 +1482,32 @@ const Projects = () => {
                                                 {projectAssignments.map(asgn => {
                                                     const builder = builders.find(b => b.id === asgn.builderId);
                                                     return (
-                                                        <div key={asgn.id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
-                                                                    {builder?.companyName?.charAt(0) || '?'}
+                                                        <div key={asgn.id} className="flex flex-col bg-white p-3 rounded-lg border border-gray-200 shadow-sm gap-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-bold">
+                                                                        {builder?.companyName?.charAt(0) || '?'}
+                                                                    </div>
+                                                                    <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">
+                                                                        {builder?.companyName || 'Unknown'}
+                                                                    </div>
                                                                 </div>
-                                                                <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">
-                                                                    {builder?.companyName || 'Unknown'}
+                                                                <div className="text-[10px] font-bold text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded">
+                                                                    {asgn.status}
                                                                 </div>
                                                             </div>
-                                                            <div className="text-[10px] font-bold text-blue-600 uppercase bg-blue-50 px-2 py-1 rounded">
-                                                                {asgn.status}
-                                                            </div>
+                                                            {builder && (
+                                                                <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                                                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Availability</span>
+                                                                    <button
+                                                                        onClick={() => toggleBuilderAvailability(builder.id, builder.availability)}
+                                                                        className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold border transition-colors ${builder.availability ? 'bg-green-50 border-green-100 text-green-700 hover:bg-green-100' : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'}`}
+                                                                    >
+                                                                        <Activity className={`h-3 w-3 ${builder.availability ? 'text-green-500' : 'text-gray-400'}`} />
+                                                                        {builder.availability ? 'Available' : 'Unavailable'}
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     );
                                                 })}

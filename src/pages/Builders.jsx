@@ -346,6 +346,13 @@ const Builders = () => {
                             
                             <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto mini-scroll pb-1 sm:pb-0">
                                 <button
+                                    onClick={() => toggleAvailability(activeBuilder.id, activeBuilder.availability)}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-lg border transition-all shrink-0 ${activeBuilder.availability ? 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                                >
+                                    <Activity className={`h-4 w-4 ${activeBuilder.availability ? 'text-green-500' : 'text-gray-400'}`} />
+                                    <span>{activeBuilder.availability ? 'Available' : 'Unavailable'}</span>
+                                </button>
+                                <button
                                     onClick={() => {
                                         const path = hasCorrespondence
                                             ? `/correspondence?type=builder&id=${activeBuilder.id}`

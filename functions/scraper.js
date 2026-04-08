@@ -65,7 +65,7 @@ async function fetchDetailWithPage(tabPage, url) {
 }
 
 export async function runScraper(targetWeekOverride = null) {
-    const stats = { added: 0, existing: 0, errors: 0 };
+    const stats = { added: 0, skipped: 0, errors: 0 };
     let browser = null;
 
     try {
@@ -74,14 +74,22 @@ export async function runScraper(targetWeekOverride = null) {
         const executablePath = await chromium.executablePath();
         console.log("Launching headless browser... Executable:", executablePath);
 
-        browser = await puppeteer.launch({
-            args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process'],
+        const launchOptions = {
+            args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
             defaultViewport: chromium.defaultViewport,
             executablePath: executablePath || undefined,
-            headless: 'new', // Using 'new' headless instead of boolean for better rendering
+            headless: 'shell', // Use the optimized 'shell' headless mode
+        };
+
+        console.error("Puppeteer - ATTEMPTING LAUNCH with options:", JSON.stringify({ ...launchOptions, executablePath: 'HIDDEN' }));
+        browser = await puppeteer.launch(launchOptions).catch(err => {
+            console.error("CRITICAL: Puppeteer launch failed:", err.message);
+            throw err;
         });
 
+        console.log("Puppeteer Launched successfully. Opening page...");
         const mainPage = await browser.newPage();
+        console.log("New tab opened. Setting User Agent...");
         const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36';
         await mainPage.setUserAgent(UA);
 
@@ -131,26 +139,48 @@ export async function runScraper(targetWeekOverride = null) {
         });
         await new Promise(r => setTimeout(r, 300));
 
+        // Submit the search form
         await Promise.all([
-            mainPage.waitForNavigation({ waitUntil: 'networkidle2' }),
+            mainPage.click('input[name="dateType"][value="DC_Decided"]').catch(() => {}), // Redundant click to ensure radio state
             mainPage.evaluate(() => {
                 const form = document.querySelector('form#weeklyListForm') || document.forms[0];
                 const btn = form.querySelector('input.button.primary') || form.querySelector('input[type="submit"]');
                 if (btn) btn.click(); else form.submit();
-            })
+            }),
+            mainPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }).catch(() => console.log("Navigation timeout, proceeding anyway...")),
         ]);
+
+        // Check if there are no results before waiting for selector
+        const noRes = await mainPage.evaluate(() => {
+            const bodyTxt = document.body.innerText;
+            return bodyTxt.includes('No results found') || bodyTxt.includes('No applications found');
+        });
+
+        if (noRes) {
+            console.log("No results found for this week. Finishing gracefully.");
+            await browser.close();
+            return { success: true, data: { added: 0, skipped: 0, updated: 0, total: 0 } };
+        }
+
+        console.log('Scraping results page 1...');
+        await mainPage.waitForSelector('#searchresults', { timeout: 30000 });
+
+        console.log(`Current URL after search: ${mainPage.url()}`);
 
         // --- PHASE 2: Collect all extension apps across all pages ---
         let hasNextPage = true;
         let pageNum = 1;
 
         while (hasNextPage) {
-            console.log(`Scraping results page ${pageNum}...`);
-            await mainPage.waitForSelector('#searchresults', { timeout: 10000 });
-
-            // Count results dynamically from DOM structure
+            console.log(`--- Processing Page ${pageNum} ---`);
             const resultsCount = await mainPage.evaluate(() => document.querySelectorAll('#searchresults .searchresult').length);
-            console.log(`  ${resultsCount} decided applications on page ${pageNum}.`);
+            console.log(`Total items found on page ${pageNum}: ${resultsCount}`);
+
+            if (resultsCount === 0) {
+                console.log("No items found on this results page. Ending search.");
+                hasNextPage = false;
+                break;
+            }
 
             for (let i = 0; i < resultsCount; i++) {
                 const appInfo = await mainPage.evaluate((index) => {
@@ -162,11 +192,10 @@ export async function runScraper(targetWeekOverride = null) {
                     return { desc, addr, href };
                 }, i);
 
-                let isRelevant = false;
-                const lowerDesc = appInfo.desc.toLowerCase();
-                if (lowerDesc.includes('extension') || lowerDesc.includes('conversion')) {
-                    isRelevant = true;
-                }
+                const lowerDesc = (appInfo.desc || '').toLowerCase();
+                const isRelevant = lowerDesc.includes('extension') || lowerDesc.includes('conversion');
+                
+                console.log(`[Item ${i+1}] ${appInfo.addr.substring(0, 30)}... Relevant: ${isRelevant ? 'YES' : 'NO'} (${appInfo.desc.substring(0, 40)})`);
 
                 if (!isRelevant) {
                     continue; // Skip without navigating
@@ -351,7 +380,7 @@ export async function runScraper(targetWeekOverride = null) {
                     }
 
                     await docRef.update(updatePayload);
-                    stats.existing++;
+                    stats.skipped++;
                 } else {
                     const projectData = {
                         id: keyVal,
@@ -447,12 +476,12 @@ export async function runScraper(targetWeekOverride = null) {
             }
         }
 
-        console.log(`Done. Added: ${stats.added}, Existing: ${stats.existing}, Errors: ${stats.errors}`);
+        console.log(`Done. Added: ${stats.added}, Skipped: ${stats.skipped}, Errors: ${stats.errors}`);
 
         // Log to Firestore for dashboard reporting
         await db.collection('scraper_logs').add({
             ...stats,
-            totalFound: stats.added + stats.existing,
+            totalFound: stats.added + stats.skipped,
             timestamp: new Date(),
             status: 'completed'
         });

@@ -739,7 +739,7 @@ const Finance = () => {
                                     Revenue vs Expenses (Last 6 Months)
                                 </h3>
                                 <div className="h-52">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <BarChart data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
@@ -761,7 +761,7 @@ const Finance = () => {
                                     Net Profit Trend
                                 </h3>
                                 <div className="h-52">
-                                    <ResponsiveContainer width="100%" height="100%">
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                         <LineChart data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />

@@ -1,5 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentUpdated, onDocumentCreated } from "firebase-functions/v2/firestore";
 import { runScraper } from "./scraper.js";
 import { finalizeContract } from "./contractHandler.js";
 import { processUpload } from "./uploadHandler.js";
@@ -27,7 +28,8 @@ export const scraper = onRequest({
     region: "europe-west2",
     cors: true,
     timeoutSeconds: 540,
-    memory: "2GiB"
+    memory: "4GiB",
+    cpu: 2, // Explicitly requesting more CPU to prevent launch crashes
 }, async (req, res) => {
     console.log("ScraperSync - RECEIVED:", req.method, JSON.stringify(req.body));
     try {
@@ -228,4 +230,258 @@ export const uploadToDrive = onRequest({
         if (req.rawBody) busboy.end(req.rawBody);
         else req.pipe(busboy);
     });
+});
+
+// ==========================================
+// 3. PUSH NOTIFICATION TRIGGERS
+// ==========================================
+
+const sendToAllStaff = async (payload) => {
+    try {
+        const profilesSnap = await admin.firestore().collection('staff_profiles').get();
+        const allTokens = [];
+        profilesSnap.forEach(doc => {
+            const profile = doc.data();
+            if (profile.notificationsEnabled && profile.fcmTokens && Array.isArray(profile.fcmTokens)) {
+                allTokens.push(...profile.fcmTokens);
+            }
+        });
+        if (allTokens.length > 0) {
+            await admin.messaging().sendEachForMulticast({
+                tokens: [...new Set(allTokens)],
+                notification: payload.notification,
+                data: payload.data || {},
+                webpush: { fcmOptions: { link: payload.data?.clickAction || '/' } }
+            });
+        }
+    } catch (err) {
+        console.error("Error in sendToAllStaff:", err);
+    }
+};
+
+// --- A. REAL-TIME CONFIRMATIONS ---
+export const notifyOnFollowUpSet = onDocumentUpdated({
+    document: "{collection}/{docId}",
+    database: "(default)",
+    region: "europe-west2"
+}, async (event) => {
+    if (event.params.collection !== 'projects' && event.params.collection !== 'builders') return;
+
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+
+    // Trigger ONLY if corrFollowUp was added or changed
+    if (after.corrFollowUp && after.corrFollowUp !== before.corrFollowUp) {
+        const name = event.params.collection === 'projects' ? (after.address || 'Project') : (after.companyName || 'Builder');
+        const date = new Date(after.corrFollowUp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+        await sendToAllStaff({
+            notification: {
+                title: "📅 Follow-up Set",
+                body: `Follow-up confirmed for ${name} on ${date}.`,
+            },
+            data: { clickAction: `https://app.benchmarkintelligence.co.uk/#/correspondence?type=${event.params.collection === 'projects' ? 'homeowner' : 'builder'}&id=${event.params.docId}` }
+        });
+    }
+});
+
+// --- B. SCHEDULED DAILY SUMMARIES (9 AM & 11 AM) ---
+const sendDailySummary = async (label) => {
+    const db = admin.firestore();
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
+    let overdueInvoices = 0;
+    let dueFollowUps = 0;
+    let pendingTodos = 0;
+
+    // 1. Check Projects for Follow-ups
+    const projects = await db.collection('projects').get();
+    projects.forEach(p => {
+        const data = p.data();
+        if (data.status === 'Archive' || data.status === 'Dead') return;
+        if (data.corrFollowUp) {
+            const fu = new Date(data.corrFollowUp);
+            fu.setHours(0,0,0,0);
+            if (fu <= now) dueFollowUps++;
+        }
+    });
+
+    // 2. Chaser Invoices
+    const invoices = await db.collection('invoices').get();
+    invoices.forEach(inv => {
+        const data = inv.data();
+        if ((data.status || '').toLowerCase() === 'paid') return;
+        if (data.payments) {
+            ['p1','p2','p3'].forEach(k => {
+                const p = data.payments[k];
+                if (p && (p.status||'').toLowerCase() !== 'paid' && p.dueDate) {
+                    const d = p.dueDate.toDate ? p.dueDate.toDate() : new Date(p.dueDate);
+                    d.setHours(0,0,0,0);
+                    if (d <= now) overdueInvoices++;
+                }
+            });
+        }
+    });
+
+    // 3. Custom To-Dos
+    const todos = await db.collection('customReminders').get();
+    todos.forEach(t => {
+        const data = t.data();
+        if (!data.completed) pendingTodos++;
+    });
+
+    const total = overdueInvoices + dueFollowUps + pendingTodos;
+
+    if (total > 0) {
+        await sendToAllStaff({
+            notification: {
+                title: `🔔 ${label}: ${total} Items`,
+                body: `${dueFollowUps} follow-ups, ${overdueInvoices} invoices, and ${pendingTodos} to-dos need your attention.`,
+            },
+            data: { clickAction: 'https://app.benchmarkintelligence.co.uk/#/' }
+        });
+    }
+};
+
+export const dailySummary9am = onSchedule({
+    region: "europe-west2",
+    schedule: "0 9 * * *",
+    timeZone: "Europe/London"
+}, () => sendDailySummary("Morning Summary"));
+
+export const dailySummary11am = onSchedule({
+    region: "europe-west2",
+    schedule: "0 11 * * *",
+    timeZone: "Europe/London"
+}, () => sendDailySummary("11 AM Update"));
+
+// --- C. REAL-TIME FINANCE & TASK TRIGGERS ---
+
+// 1. Notify on New Expense
+export const notifyOnNewExpense = onDocumentCreated({
+    document: "fin_expenses/{docId}",
+    region: "europe-west2"
+}, async (event) => {
+    const data = event.data.data();
+    await sendToAllStaff({
+        notification: {
+            title: "💸 Expense Logged",
+            body: `New £${data.amount.toFixed(2)} expense: ${data.description}`,
+        },
+        data: { clickAction: 'https://app.benchmarkintelligence.co.uk/#/finance' }
+    });
+});
+
+// 2. Notify on New Revenue
+export const notifyOnNewRevenue = onDocumentCreated({
+    document: "fin_revenue/{docId}",
+    region: "europe-west2"
+}, async (event) => {
+    const data = event.data.data();
+    await sendToAllStaff({
+        notification: {
+            title: "💰 Revenue Received",
+            body: `Incoming payment of £${data.amount.toFixed(2)}: ${data.description}`,
+        },
+        data: { clickAction: 'https://app.benchmarkintelligence.co.uk/#/finance' }
+    });
+});
+
+// 3. Notify on New To-Do Task
+export const notifyOnNewTodo = onDocumentCreated({
+    document: "customReminders/{docId}",
+    region: "europe-west2"
+}, async (event) => {
+    const data = event.data.data();
+    await sendToAllStaff({
+        notification: {
+            title: "📝 New Task Added",
+            body: data.text,
+        },
+        data: { clickAction: 'https://app.benchmarkintelligence.co.uk/#/' }
+    });
+});
+
+// 4. Notify on Invoice Payment Progress
+export const notifyOnInvoicePayment = onDocumentUpdated({
+    document: "invoices/{docId}",
+    region: "europe-west2"
+}, async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+
+    // Check if any payment part was marked as 'Paid'
+    let newlyPaidPart = null;
+    ['p1', 'p2', 'p3'].forEach(k => {
+        const b = before.payments?.[k];
+        const a = after.payments?.[k];
+        if (a && a.status === 'Paid' && (!b || b.status !== 'Paid')) {
+            newlyPaidPart = k.toUpperCase();
+        }
+    });
+
+    if (newlyPaidPart) {
+        const builderSnap = await admin.firestore().collection('builders').doc(after.builderId).get();
+        const builderName = builderSnap.exists ? (builderSnap.data().companyName || 'Builder') : 'Builder';
+        
+        await sendToAllStaff({
+            notification: {
+                title: "✅ Invoice Part Paid",
+                body: `Payment ${newlyPaidPart} for ${builderName} confirmed.`,
+            },
+            data: { clickAction: `https://app.benchmarkintelligence.co.uk/#/invoices?id=${event.params.docId}` }
+        });
+    }
+});
+
+export const testPushNotification = onRequest({
+    region: "europe-west2",
+    cors: [/app\.benchmarkintelligence\.co\.uk$/, /localhost:5173$/],
+    invoker: "public"
+}, async (req, res) => {
+    // Manually handle preflight if needed
+    if (req.method === 'OPTIONS') {
+        res.set('Access-Control-Allow-Origin', '*');
+        res.set('Access-Control-Allow-Methods', 'POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+        res.status(204).send('');
+        return;
+    }
+
+    const { uid } = req.body;
+    if (!uid) return res.status(400).send({ success: false, error: "Missing UID" });
+
+    try {
+        const userRef = admin.firestore().collection('staff_profiles').doc(uid);
+        const doc = await userRef.get();
+        if (!doc.exists || !doc.data().fcmTokens) {
+            console.log(`No tokens for user: ${uid}`);
+            return res.status(200).send({ success: false, error: "No registered tokens found." });
+        }
+
+        const tokens = [...new Set(doc.data().fcmTokens)];
+        const response = await admin.messaging().sendEachForMulticast({
+            tokens: tokens,
+            notification: {
+                title: "🚀 Test Successful!",
+                body: "Your notifications are now fully connected to Benchmark Intelligence.",
+            },
+            webpush: { 
+                fcmOptions: { link: 'https://app.benchmarkintelligence.co.uk/' } 
+            }
+        });
+
+        // Clean up invalid tokens automatically
+        if (response.failureCount > 0) {
+            const validTokens = tokens.filter((_, i) => response.responses[i].success);
+            await userRef.update({ fcmTokens: validTokens });
+        }
+
+        console.log(`Sent ${response.successCount} messages for user ${uid}`);
+        res.status(200).send({ success: true, tokenCount: tokens.length, sentCount: response.successCount });
+    } catch (err) {
+        console.error("Test push failed:", err);
+        res.status(500).send({ success: false, error: err.message });
+    }
 });

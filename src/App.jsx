@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
+import Productivity from './pages/Productivity';
 import Capture from './pages/Capture';
 import Builders from './pages/Builders';
 import Contracts from './pages/Contracts';
@@ -15,10 +17,45 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Routing from './pages/Routing';
 import Finance from './pages/Finance';
 import { RecordingProvider } from './context/RecordingContext';
+import NotificationManager from './components/NotificationManager';
+
+// Web Push Certificate Key (VAPID Key) from Firebase Console
+const NOTIFICATION_VAPID_KEY = "BCj59RXnXkR_mAzEpU8RvE2ae5zIKwx_hdDfh2Bk0aFa48Uyyc1D-qxRzVmaEFtQLcfWBDaX1tY1wwNtzOZstlg";
 
 function App() {
+    useEffect(() => {
+        const handleGlobalClick = (e) => {
+            const anchor = e.target.closest('a');
+            if (!anchor) return;
+
+            const href = anchor.getAttribute('href');
+            if (!href) return;
+
+            // Only intercept external URLs or urls explicitly opening in new tabs
+            const isExternal = 
+                href.startsWith('http') || 
+                href.startsWith('https') || 
+                href.startsWith('mailto:') || 
+                href.startsWith('tel:');
+            
+            const isBlankTarget = anchor.target === '_blank';
+
+            // Check if we are in Tauri
+            const isTauri = window.__TAURI_INTERNALS__ !== undefined;
+
+            if (isTauri && (isExternal || isBlankTarget)) {
+                e.preventDefault();
+                openExternalLink(href);
+            }
+        };
+
+        window.addEventListener('click', handleGlobalClick);
+        return () => window.removeEventListener('click', handleGlobalClick);
+    }, []);
+
     return (
         <RecordingProvider>
+            <NotificationManager vapidKey={NOTIFICATION_VAPID_KEY} />
             <HashRouter>
             <Routes>
                 {/* Public Routes */}
@@ -32,6 +69,14 @@ function App() {
                     element={
                         <ProtectedRoute>
                             <Dashboard />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/productivity"
+                    element={
+                        <ProtectedRoute>
+                            <Productivity />
                         </ProtectedRoute>
                     }
                 />

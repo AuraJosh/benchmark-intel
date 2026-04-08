@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDocs, where, deleteDoc } from 'firebase/firestore';
-import { MapPin, Navigation, Map as MapIcon, Loader2, User, Users, ExternalLink, Calendar, CheckCircle2, ChevronRight, Save, Trash2, X, Activity, Eye, EyeOff } from 'lucide-react';
+import { MapPin, Navigation, Map as MapIcon, Loader2, User, Users, ExternalLink, Calendar, CheckCircle2, ChevronRight, Save, Trash2, X, Activity, Eye, EyeOff, ClipboardList } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 
@@ -42,108 +42,184 @@ const Routing = () => {
     const endInputRef = useRef(null);
     const startAutocomplete = useRef(null);
     const endAutocomplete = useRef(null);
+    const activeMarkers = useRef([]);
+    const [mapReady, setMapReady] = useState(false);
+
+    // Manage manual project markers
+    useEffect(() => {
+        if (!googleMap.current || !routeProjects.length) {
+            activeMarkers.current.forEach(m => m.setMap(null));
+            activeMarkers.current = [];
+            return;
+        }
+
+        // Clear existing markers
+        activeMarkers.current.forEach(m => m.setMap(null));
+        activeMarkers.current = [];
+
+        // Determine if we should show labels (order)
+        const sortedProjects = [...routeProjects].sort((a, b) => {
+            const indexA = selectedRoute.projectIds?.indexOf(a.id) ?? 999;
+            const indexB = selectedRoute.projectIds?.indexOf(b.id) ?? 999;
+            return indexA - indexB;
+        });
+
+        // Add markers for each project
+        const bounds = new window.google.maps.LatLngBounds();
+        let validCoordsFound = false;
+
+        sortedProjects.forEach((proj, idx) => {
+            const lat = parseFloat(proj.coordinates?.lat || proj.latitude);
+            const lng = parseFloat(proj.coordinates?.lng || proj.longitude);
+
+            if (!isNaN(lat) && !isNaN(lng)) {
+                const pos = { lat, lng };
+                const marker = new window.google.maps.Marker({
+                    position: pos,
+                    map: googleMap.current,
+                    label: {
+                        text: (idx + 1).toString(),
+                        color: 'white',
+                        fontWeight: 'bold'
+                    },
+                    title: proj.title || proj.name,
+                    icon: {
+                        path: window.google.maps.SymbolPath.CIRCLE,
+                        fillColor: '#3b82f6',
+                        fillOpacity: 1,
+                        strokeColor: '#ffffff',
+                        strokeWeight: 2,
+                        scale: 12,
+                    }
+                });
+
+                bounds.extend(pos);
+                activeMarkers.current.push(marker);
+                validCoordsFound = true;
+            }
+        });
+
+        // Auto-center map if markers are present
+        if (validCoordsFound && !directionsRenderer.current?.getDirections()) {
+            googleMap.current.fitBounds(bounds);
+            // Don't zoom in too far for a single marker
+            if (activeMarkers.current.length === 1) {
+                googleMap.current.setZoom(14);
+            }
+        }
+
+    }, [routeProjects, selectedRoute?.projectIds, mapReady]);
 
 
     // Initialize map — delayed so slide-over animation completes before Google
     // tries to measure the div dimensions (zero-size div = blank map).
+    // Initialize map and library
     useEffect(() => {
         if (!selectedRoute) {
-            // Panel closing — destroy the map instance so next open starts fresh
             googleMap.current = null;
             directionsRenderer.current = null;
+            activeMarkers.current = [];
+            setMapReady(false);
             return;
         }
 
         if (!window.google) return;
 
-        // Wait for the 500ms slide-over transition to finish
-        const timerId = setTimeout(() => {
+        const initMap = async () => {
+             // Wait for the slide-over transition
+            await new Promise(resolve => setTimeout(resolve, 520));
             if (!mapRef.current) return;
 
-            // Always create a fresh map for each route open
-            googleMap.current = new window.google.maps.Map(mapRef.current, {
-                center: { lat: 53.959965, lng: -1.087298 },
-                zoom: 12,
-                mapTypeControl: false,
-                streetViewControl: false,
-                styles: [
-                    { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#e9e9e9" }, { "lightness": 17 }] },
-                    { "featureType": "landscape", "elementType": "geometry", "stylers": [{ "color": "#f5f5f5" }, { "lightness": 20 }] },
-                    { "featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{ "color": "#ffffff" }, { "lightness": 17 }] },
-                    { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#ffffff" }, { "lightness": 29 }, { "weight": 0.2 }] },
-                    { "featureType": "road.arterial", "elementType": "geometry", "stylers": [{ "color": "#ffffff" }, { "lightness": 18 }] },
-                    { "featureType": "road.local", "elementType": "geometry", "stylers": [{ "color": "#ffffff" }, { "lightness": 16 }] },
-                    { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#f5f5f5" }, { "lightness": 21 }] },
-                    { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#dedede" }, { "lightness": 21 }] },
-                    { "elementType": "labels.text.stroke", "stylers": [{ "visibility": "on" }, { "color": "#ffffff" }, { "lightness": 16 }] },
-                    { "elementType": "labels.text.fill", "stylers": [{ "saturation": 36 }, { "color": "#333333" }, { "lightness": 40 }] },
-                    { "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
-                    { "featureType": "transit", "elementType": "geometry", "stylers": [{ "color": "#f2f2f2" }, { "lightness": 19 }] },
-                    { "featureType": "administrative", "elementType": "geometry.fill", "stylers": [{ "color": "#fefefe" }, { "lightness": 20 }] },
-                    { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [{ "color": "#fefefe" }, { "lightness": 17 }, { "weight": 1.2 }] }
-                ]
-            });
+            try {
+                // Load libraries using the modern pattern
+                const { Map } = await window.google.maps.importLibrary("maps");
+                const { DirectionsRenderer } = await window.google.maps.importLibrary("routes");
 
-            // Force the map to recalculate its size now the div is fully visible
-            window.google.maps.event.trigger(googleMap.current, 'resize');
+                googleMap.current = new Map(mapRef.current, {
+                    center: { lat: 53.959965, lng: -1.087298 },
+                    zoom: 12,
+                    mapId: 'DEMO_MAP_ID', // Modern maps require a Map ID or 'DEMO_MAP_ID'
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    styles: [
+                        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#e9e9e9" }, { "lightness": 17 }] },
+                        { "featureType": "landscape", "elementType": "geometry", "stylers": [{ "color": "#f5f5f5" }, { "lightness": 20 }] },
+                        { "featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{ "color": "#ffffff" }, { "lightness": 17 }] },
+                        { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#ffffff" }, { "lightness": 29 }, { "weight": 0.2 }] },
+                        { "featureType": "road.arterial", "elementType": "geometry", "stylers": [{ "color": "#ffffff" }, { "lightness": 18 }] },
+                        { "featureType": "road.local", "elementType": "geometry", "stylers": [{ "color": "#ffffff" }, { "lightness": 16 }] },
+                        { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#f5f5f5" }, { "lightness": 21 }] },
+                        { "featureType": "poi.park", "elementType": "geometry", "stylers": [{ "color": "#dedede" }, { "lightness": 21 }] },
+                        { "elementType": "labels.text.stroke", "stylers": [{ "visibility": "on" }, { "color": "#ffffff" }, { "lightness": 16 }] },
+                        { "elementType": "labels.text.fill", "stylers": [{ "saturation": 36 }, { "color": "#333333" }, { "lightness": 40 }] },
+                        { "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
+                        { "featureType": "transit", "elementType": "geometry", "stylers": [{ "color": "#f2f2f2" }, { "lightness": 19 }] },
+                        { "featureType": "administrative", "elementType": "geometry.fill", "stylers": [{ "color": "#fefefe" }, { "lightness": 20 }] },
+                        { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [{ "color": "#fefefe" }, { "lightness": 17 }, { "weight": 1.2 }] }
+                    ]
+                });
 
-            directionsRenderer.current = new window.google.maps.DirectionsRenderer({
-                map: googleMap.current,
-                suppressMarkers: false,
-                polylineOptions: {
-                    strokeColor: '#3b82f6',
-                    strokeOpacity: 0.8,
-                    strokeWeight: 6
+                directionsRenderer.current = new DirectionsRenderer({
+                    map: googleMap.current,
+                    suppressMarkers: true,
+                    polylineOptions: {
+                        strokeColor: '#3b82f6',
+                        strokeOpacity: 0.8,
+                        strokeWeight: 6
+                    }
+                });
+
+                // Initialize Autocomplete using the modern pattern
+                const { Autocomplete } = await window.google.maps.importLibrary("places");
+                
+                const options = {
+                    componentRestrictions: { country: 'gb' },
+                    fields: ['formatted_address', 'geometry'],
+                    types: ['address']
+                };
+
+                if (startInputRef.current) {
+                    startAutocomplete.current = new Autocomplete(startInputRef.current, options);
+                    startAutocomplete.current.addListener('place_changed', () => {
+                        const place = startAutocomplete.current.getPlace();
+                        const addr = place.formatted_address || startInputRef.current.value;
+                        setStartAddress(addr);
+                        updateDoc(doc(db, 'routes', selectedRoute.id), { startAddress: addr }).catch(console.error);
+                    });
                 }
-            });
-        }, 520); // Just after the 500ms slide-over CSS transition
 
-        return () => clearTimeout(timerId);
-    }, [selectedRoute]);
+                if (endInputRef.current) {
+                    endAutocomplete.current = new Autocomplete(endInputRef.current, options);
+                    endAutocomplete.current.addListener('place_changed', () => {
+                        const place = endAutocomplete.current.getPlace();
+                        const addr = place.formatted_address || endInputRef.current.value;
+                        setEndAddress(addr);
+                        updateDoc(doc(db, 'routes', selectedRoute.id), { endAddress: addr }).catch(console.error);
+                    });
+                }
+
+                setMapReady(true);
+
+            } catch (error) {
+                console.error("Error initializing Google Maps/Places:", error);
+            }
+        };
+
+        initMap();
+
+        return () => {
+            googleMap.current = null;
+            directionsRenderer.current = null;
+            startAutocomplete.current = null;
+            endAutocomplete.current = null;
+            setMapReady(false);
+        };
+    }, [selectedRoute?.id]);
 
     // Persist hideCompleted state
     useEffect(() => {
         localStorage.setItem('benchmark_routing_hideCompleted', hideCompleted);
     }, [hideCompleted]);
-
-    // Attach Google Places Autocomplete to address inputs once panel opens
-    useEffect(() => {
-        if (!selectedRoute || !window.google?.maps?.places) return;
-
-        const options = {
-            componentRestrictions: { country: 'gb' },
-            fields: ['formatted_address', 'geometry'],
-            types: ['address']
-        };
-
-        // Start address
-        if (startInputRef.current && !startAutocomplete.current) {
-            startAutocomplete.current = new window.google.maps.places.Autocomplete(startInputRef.current, options);
-            startAutocomplete.current.addListener('place_changed', () => {
-                const place = startAutocomplete.current.getPlace();
-                const addr = place.formatted_address || startInputRef.current.value;
-                setStartAddress(addr);
-                updateDoc(doc(db, 'routes', selectedRoute.id), { startAddress: addr }).catch(console.error);
-            });
-        }
-
-        // End address
-        if (endInputRef.current && !endAutocomplete.current) {
-            endAutocomplete.current = new window.google.maps.places.Autocomplete(endInputRef.current, options);
-            endAutocomplete.current.addListener('place_changed', () => {
-                const place = endAutocomplete.current.getPlace();
-                const addr = place.formatted_address || endInputRef.current.value;
-                setEndAddress(addr);
-                updateDoc(doc(db, 'routes', selectedRoute.id), { endAddress: addr }).catch(console.error);
-            });
-        }
-
-        // Cleanup on panel close
-        return () => {
-            startAutocomplete.current = null;
-            endAutocomplete.current = null;
-        };
-    }, [selectedRoute]);
 
 
     useEffect(() => {
@@ -169,7 +245,6 @@ const Routing = () => {
                 setStartAddress(r.startAddress || '');
                 setEndAddress(r.endAddress || '');
                 setAssignedTo(r.assignedTo || '');
-                fetchRouteProjects(r.projectIds || [], r.orderedProjectIds);
             }
         } else {
             setSelectedRoute(null);
@@ -177,43 +252,38 @@ const Routing = () => {
         }
     }, [searchParams, routes]);
 
-    const fetchRouteProjects = async (projectIds, orderedIds) => {
-        if (!projectIds || projectIds.length === 0) {
+    // REAL-TIME LISTENER for the projects in the current route
+    useEffect(() => {
+        if (!selectedRoute?.projectIds || selectedRoute.projectIds.length === 0) {
             setRouteProjects([]);
             return;
         }
+
+        const projectIds = selectedRoute.projectIds;
+        const orderedIds = selectedRoute.projectIds; // We use projectIds for order now
+
+        // Firestore 'in' query limit is 30. Most routes are < 30.
+        // For simplicity and performance, we'll listen to projects in chunks of 30 if needed,
+        // but for now let's handle the primary case.
+        const q = query(collection(db, 'projects'), where('__name__', 'in', projectIds.slice(0, 30)));
         
-        try {
-            // Firestore 'in' query supports up to 30 items
-            const chunks = [];
-            for (let i = 0; i < projectIds.length; i += 30) {
-                chunks.push(projectIds.slice(i, i + 30));
-            }
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            let allProjects = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             
-            let allProjects = [];
-            for (const chunk of chunks) {
-                const q = query(collection(db, 'projects'), where('__name__', 'in', chunk));
-                const snap = await getDocs(q);
-                allProjects = [...allProjects, ...snap.docs.map(d => ({ id: d.id, ...d.data() }))];
-            }
-            
-            // Reorder based on orderedIds if available
-            if (orderedIds && orderedIds.length > 0) {
-                allProjects.sort((a, b) => {
-                    const idxA = orderedIds.indexOf(a.id);
-                    const idxB = orderedIds.indexOf(b.id);
-                    if (idxA === -1 && idxB === -1) return 0;
-                    if (idxA === -1) return 1;
-                    if (idxB === -1) return -1;
-                    return idxA - idxB;
-                });
-            }
+            // Reorder based on the projectIds order in the route
+            allProjects.sort((a, b) => {
+                const idxA = projectIds.indexOf(a.id);
+                const idxB = projectIds.indexOf(b.id);
+                return idxA - idxB;
+            });
             
             setRouteProjects(allProjects);
-        } catch (error) {
-            console.error("Error fetching route projects:", error);
-        }
-    };
+        }, (error) => {
+            console.error("Error listening to route projects:", error);
+        });
+
+        return () => unsubscribe();
+    }, [selectedRoute?.projectIds]);
 
     const handleSaveDetails = async () => {
         if (!selectedRoute) return;
@@ -253,44 +323,30 @@ const Routing = () => {
         try {
             const directionsService = new window.google.maps.DirectionsService();
 
+            let waypointProjects = [...routeProjects].filter(p => !p.completed);
+            let actualOriginWasProject = null;
+            let actualDestWasProject = null;
             let finalOrigin = startAddress;
             let finalDestination = endAddress;
-            
-            // Prefer address string over coords — ensures correct house number
-            // (stored coords from scraper may be slightly inaccurate)
-            if (!finalOrigin) {
-                if (routeProjects[0].address) {
-                    finalOrigin = routeProjects[0].address;
-                } else if (routeProjects[0].coordinates?.lat) {
-                    finalOrigin = new window.google.maps.LatLng(routeProjects[0].coordinates.lat, routeProjects[0].coordinates.lng);
-                }
+
+            // ORIGIN: If no start address, use the first project
+            if (!finalOrigin && waypointProjects.length > 0) {
+                actualOriginWasProject = waypointProjects.shift();
+                finalOrigin = { 
+                    lat: parseFloat(actualOriginWasProject.coordinates?.lat || actualOriginWasProject.latitude), 
+                    lng: parseFloat(actualOriginWasProject.coordinates?.lng || actualOriginWasProject.longitude) 
+                };
             }
-            
+
+            // DESTINATION:
             if (isRoundTrip) {
                 finalDestination = finalOrigin;
-            } else if (!finalDestination) {
-                const lastP = routeProjects[routeProjects.length - 1];
-                if (lastP.address) {
-                    finalDestination = lastP.address;
-                } else if (lastP.coordinates?.lat) {
-                    finalDestination = new window.google.maps.LatLng(lastP.coordinates.lat, lastP.coordinates.lng);
-                }
-            }
-
-            let waypointProjects = [...routeProjects];
-            
-            // LOGIC: If a custom 'startAddress' is provided, ALL routeProjects are intermediate waypoints.
-            // If NO 'startAddress' is provided, we use routeProjects[0] as the ORIGIN, so we remove it from waypoints.
-            if (!startAddress && waypointProjects.length > 0) {
-                waypointProjects.shift();
-            }
-
-            // LOGIC: If 'isRoundTrip', the destination is the origin, so all remaining waypointProjects are intermediate.
-            // If NOT 'isRoundTrip':
-            //    - If custom 'endAddress' provided, all remaining are intermediate.
-            //    - If NO custom 'endAddress', we use the last project as DESTINATION, so remove it from waypoints.
-            if (!isRoundTrip && !endAddress && waypointProjects.length > 0) {
-                waypointProjects.pop();
+            } else if (!finalDestination && waypointProjects.length > 0) {
+                actualDestWasProject = waypointProjects.pop();
+                finalDestination = { 
+                    lat: parseFloat(actualDestWasProject.coordinates?.lat || actualDestWasProject.latitude), 
+                    lng: parseFloat(actualDestWasProject.coordinates?.lng || actualDestWasProject.longitude) 
+                };
             }
 
             if (waypointProjects.length > 25) {
@@ -299,16 +355,12 @@ const Routing = () => {
                 return;
             }
 
-            // Always use address string so Google finds the EXACT house number.
-            // Stored coordinates from the scraper may be slightly wrong (e.g. resolving
-            // to a different door number on the same street).
+            // Build the intermediate waypoints
             const waypoints = waypointProjects.map(p => {
-                if (p.address) {
-                    return { location: p.address, stopover: true };
-                }
-                // Only fall back to coords if literally no address string exists
-                if (p.coordinates?.lat && p.coordinates?.lng) {
-                    return { location: new window.google.maps.LatLng(p.coordinates.lat, p.coordinates.lng), stopover: true };
+                const lat = parseFloat(p.coordinates?.lat || p.latitude);
+                const lng = parseFloat(p.coordinates?.lng || p.longitude);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    return { location: new window.google.maps.LatLng(lat, lng), stopover: true };
                 }
                 return null;
             }).filter(Boolean);
@@ -318,21 +370,17 @@ const Routing = () => {
                 destination: finalDestination,
                 waypoints: waypoints,
                 optimizeWaypoints: true,
-                travelMode: window.google.maps.TravelMode.DRIVING
-            };
-
-            if (useTraffic) {
-                requestParams.drivingOptions = {
+                travelMode: window.google.maps.TravelMode.DRIVING,
+                drivingOptions: useTraffic ? {
                     departureTime: new Date(),
                     trafficModel: 'bestguess'
-                };
-            }
+                } : undefined
+            };
 
-            // Fallback timeout in case Google API terminates silently (e.g. ApiNotActivatedMapError)
             const timeoutId = setTimeout(() => {
                 setIsCalculating(false);
-                alert("Google Maps API request timed out! Please ensure Maps JavaScript API and Directions API are enabled in your Google Cloud Console for your API Key.");
-            }, 8000);
+                alert("Google Maps API request timed out! Please ensure Maps JavaScript API and Directions API are enabled for your Key.");
+            }, 15000);
 
             directionsService.route(requestParams, async (result, status) => {
                 clearTimeout(timeoutId);
@@ -343,61 +391,48 @@ const Routing = () => {
                         }
 
                         const route = result.routes[0];
-                        const order = route.waypoint_order || []; 
+                        const fastOrderOrder = route.waypoint_order || []; 
+                        
+                        // REBUILD the list in the OPTIMIZED order
+                        const finalOrderedIds = [];
 
-                        // Reorder the waypoints based on the API response order (or fallback)
-                        let optimizedWaypoints = [];
-                        if (order && order.length > 0) {
-                            optimizedWaypoints = order.map(index => waypointProjects[index]);
-                        } else {
-                            optimizedWaypoints = [...waypointProjects];
+                        // 1. Start Point
+                        if (actualOriginWasProject) {
+                            finalOrderedIds.push(actualOriginWasProject.id);
                         }
-                        
-                        // Reassemble full ordered list with start/end projects if we excluded them
-                        let completedOrder = [];
-                        
-                        // If we used the first project as origin, put it back at index 0
-                        if (!startAddress && routeProjects.length > 0) {
-                            completedOrder.push(routeProjects[0]);
+
+                        // 2. Optimized Middle Waypoints
+                        fastOrderOrder.forEach(index => {
+                            const p = waypointProjects[index];
+                            if (p) finalOrderedIds.push(p.id);
+                        });
+
+                        // 3. End Point (if not round trip)
+                        if (actualDestWasProject && !isRoundTrip) {
+                            finalOrderedIds.push(actualDestWasProject.id);
                         }
-                        
-                        completedOrder = [...completedOrder, ...optimizedWaypoints];
-                        
-                        // If we used the last project as destination (not round trip and no end addr), put it back at the end
-                        if (!isRoundTrip && !endAddress && routeProjects.length > 1) {
-                            // Only add it if it's not already there (though shift/pop should have handled this)
-                            const lastProject = routeProjects[routeProjects.length - 1];
-                            if (!completedOrder.find(p => p.id === lastProject.id)) {
-                                completedOrder.push(lastProject);
+
+                        // 4. Any projects that were NOT in the optimization (completed or excluded)
+                        routeProjects.forEach(p => {
+                            if (!finalOrderedIds.includes(p.id)) {
+                                finalOrderedIds.push(p.id);
                             }
-                        }
+                        });
 
-                        // Safety check: Verify we have every project from the original set
-                        const missingProjects = routeProjects.filter(p => !completedOrder.find(c => c.id === p.id));
-                        completedOrder = [...completedOrder, ...missingProjects];
-
-                        // Save the new perfect order
-                        const finalOrderedIds = completedOrder.map(p => p.id);
+                        // SAVE THE PERFECT NEW ORDER TO FIRESTORE
                         await updateDoc(doc(db, 'routes', selectedRoute.id), {
-                            orderedProjectIds: finalOrderedIds,
-                            startAddress: startAddress || '',
-                            endAddress: endAddress || '',
-                            assignedTo
+                            projectIds: finalOrderedIds
                         });
                         
-                        setRouteProjects(completedOrder);
-                        
-                        // Notify the user of completion
                         setShowSuccessFeedback(true);
                         setTimeout(() => setShowSuccessFeedback(false), 2000);
                         
                     } else {
-                        console.error("Directions failure", status);
+                        console.error("Directions Failure:", status);
                         alert("Could not calculate route: " + status);
                     }
                 } catch (err) {
                     console.error("Error processing route callback:", err);
-                    alert("An error occurred while compiling the route: " + err.message);
                 } finally {
                     setIsCalculating(false);
                 }
@@ -405,7 +440,6 @@ const Routing = () => {
             
         } catch (error) {
             console.error("Error initiating route calculation:", error);
-            alert(error.message || "An unexpected error occurred during optimization.");
             setIsCalculating(false);
         }
     };
@@ -777,24 +811,61 @@ const Routing = () => {
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2">
-                                                                    <h3 className="font-bold text-[#0f172a] truncate">{p.address}</h3>
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            const projectRef = doc(db, 'projects', p.id);
+                                                                            await updateDoc(projectRef, { completed: !p.completed });
+                                                                        }}
+                                                                        className={`flex-shrink-0 h-5 w-5 rounded border flex items-center justify-center transition-colors ${p.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-blue-400'}`}
+                                                                        title={p.completed ? "Mark as unvisited" : "Mark as visited"}
+                                                                    >
+                                                                        {p.completed && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                                                    </button>
+                                                                    <h3 className={`font-bold text-[#0f172a] truncate transition-all ${p.completed ? 'line-through text-gray-400 opacity-60' : ''}`}>
+                                                                        {p.address}
+                                                                    </h3>
                                                                 </div>
                                                                 <div className="flex items-center gap-2 mt-1">
                                                                     <span className="text-[10px] font-extrabold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded tracking-wide uppercase">{p.status}</span>
                                                                     {p.applicantName && <span className="text-[10px] text-gray-500 truncate"><User className="inline h-3 w-3 mr-0.5"/> {p.applicantName}</span>}
                                                                 </div>
+                                                                
+                                                                {/* Quick Notes Input */}
+                                                                <div className="mt-2.5 flex items-center gap-2">
+                                                                    <input 
+                                                                        type="text"
+                                                                        placeholder="Quick internal note..."
+                                                                        defaultValue={p.notes || ''}
+                                                                        onBlur={async (e) => {
+                                                                            if (e.target.value !== (p.notes || '')) {
+                                                                                const projectRef = doc(db, 'projects', p.id);
+                                                                                await updateDoc(projectRef, { notes: e.target.value });
+                                                                            }
+                                                                        }}
+                                                                        className="w-full text-[11px] bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-300 rounded-lg px-3 py-1.5 placeholder-gray-400 transition-all outline-none border"
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                            <div className="flex flex-col items-end gap-1">
-                                                                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full whitespace-nowrap hidden group-hover:block animate-in zoom-in slide-in-from-right-2 duration-200">
-                                                                    Stop {idx + 1}
+                                                            <div className="flex flex-col items-end gap-2">
+                                                                <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap hidden group-hover:block animate-in zoom-in slide-in-from-right-2 duration-200 ${p.completed ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                                                    {p.completed ? 'Completed' : `Stop ${idx + 1}`}
                                                                 </span>
-                                                                <button 
-                                                                    onClick={() => navigate(`/projects?id=${p.id}&backTo=${encodeURIComponent(`/routing?id=${selectedRoute.id}`)}`)}
-                                                                    className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
-                                                                    title="View Project Details"
-                                                                >
-                                                                    <ExternalLink className="h-4 w-4" />
-                                                                </button>
+                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <button 
+                                                                        onClick={() => navigate(`/capture?id=${p.id}`)}
+                                                                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition shrink-0"
+                                                                        title="Add Quick Capture"
+                                                                    >
+                                                                        <ClipboardList className="h-4 w-4" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => navigate(`/projects?id=${p.id}&backTo=${encodeURIComponent(`/routing?id=${selectedRoute.id}`)}`)}
+                                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
+                                                                        title="View Project Details"
+                                                                    >
+                                                                        <ExternalLink className="h-4 w-4" />
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
