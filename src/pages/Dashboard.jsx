@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, addDoc, deleteDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { Network, Activity, FileSignature, Receipt, Users, Home, Loader2, Bell, EyeOff, Clock, CheckCircle2, ChevronLeft, ChevronRight, Plus, X, Calendar, Rocket } from 'lucide-react';
+import { Network, Activity, FileSignature, Receipt, Users, Home, Loader2, Bell, EyeOff, Clock, CheckCircle2, ChevronLeft, ChevronRight, Plus, X, Calendar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 // Format: 'YYYY-MM-DD'
@@ -500,28 +500,7 @@ const Dashboard = () => {
         );
     }
 
-    const handleTestPush = async () => {
-        if (!auth.currentUser) {
-            alert("Please log in to register your device.");
-            return;
-        }
-        try {
-            const response = await fetch('https://europe-west2-benchmark-intel-3ea4a.cloudfunctions.net/testPushNotification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ uid: auth.currentUser.uid })
-            });
-            const result = await response.json();
-            if (result.success) {
-                alert(`Test signal sent to ${result.tokenCount} devices!`);
-            } else {
-                alert("No phone ID found for your account. Try refreshing the app first.");
-            }
-        } catch (err) {
-            console.error(err);
-            alert("Technical error: Is your phone's ID registered?");
-        }
-    };
+
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
@@ -530,13 +509,7 @@ const Dashboard = () => {
                     <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#0f172a]">Dashboard</h1>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
-                        onClick={handleTestPush}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] font-bold text-indigo-700 hover:bg-indigo-100 transition-all shadow-sm"
-                    >
-                        <Rocket className="h-3.5 w-3.5" />
-                        Test Push
-                    </button>
+
                     {typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission !== 'granted' && (
                         <button 
                             onClick={async () => {
