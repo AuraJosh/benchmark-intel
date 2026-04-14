@@ -46,7 +46,13 @@ figma.ui.onmessage = async msg => {
       try {
         if (node.type === "TEXT") {
           if (node.name.endsWith('Link') && typeof data[node.name] === 'string' && data[node.name].startsWith('http')) {
-             if (await setTextSafe(node, "Link to Full Document")) {
+             // Hero links (Cover, Proposed Plan, etc.)
+             let label = "Link to Full Document";
+             if (node.name === 'coverLink') label = "View Site Photo / Elevation";
+             if (node.name === 'proposedPlanLink') label = "View Proposed Layout";
+             if (node.name === 'aerialLink') label = "View Site / Location Plan";
+             
+             if (await setTextSafe(node, label)) {
                node.hyperlink = { type: 'URL', value: data[node.name] };
                mappedNodes++;
              }
@@ -204,12 +210,12 @@ figma.ui.onmessage = async msg => {
                try {
                  const cleanedName = node.name.trim();
                   if (node.type === "TEXT") {
-                   if (cleanedName === 'docTitle' && docData.docTitle) {
-                     // "Link to Existing Plans" — single combined clickable text
-                     if (await setTextSafe(node, 'Link to ' + docData.docTitle)) {
-                       if (docData.docLink) node.hyperlink = { type: 'URL', value: docData.docLink };
-                       mappedNodes++;
-                     }
+                   if (cleanedName === 'docTitle' || cleanedName === 'linkText') {
+                    const textToSet = docData.linkText || (docData.docTitle ? `Link to ${docData.docTitle}` : 'Link to Document');
+                    if (await setTextSafe(node, textToSet)) {
+                      if (docData.docLink) node.hyperlink = { type: 'URL', value: docData.docLink };
+                      mappedNodes++;
+                    }
                    }
                   } else if ((node.type === "RECTANGLE" || node.type === "FRAME" || node.type === "ELLIPSE") && cleanedName === 'docPreview' && docData.docPreview) {
                     try {

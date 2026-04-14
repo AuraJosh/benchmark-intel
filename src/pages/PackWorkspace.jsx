@@ -179,10 +179,11 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
                     };
 
                     await updateDoc(doc(db, 'projects', projectId), {
-                        finishedProjectPack: packData
+                        finishedProjectPack: packData,
+                        status: 'Pack Created'
                     });
 
-                    setProject(prev => ({ ...prev, finishedProjectPack: packData }));
+                    setProject(prev => ({ ...prev, finishedProjectPack: packData, status: 'Pack Created' }));
                     setIsUploadingPack(false);
                     setUploadProgress(0);
                     if (packInputRef.current) packInputRef.current.value = '';
@@ -209,9 +210,10 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
                     const packRef = ref(storage, project.finishedProjectPack.fullPath);
                     await deleteObject(packRef);
                     await updateDoc(doc(db, 'projects', projectId), {
-                        finishedProjectPack: null
+                        finishedProjectPack: null,
+                        status: 'Pack Required'
                     });
-                    setProject(prev => ({ ...prev, finishedProjectPack: null }));
+                    setProject(prev => ({ ...prev, finishedProjectPack: null, status: 'Pack Required' }));
                     setConfirmation({ ...confirmation, isOpen: false });
                 } catch (error) {
                     console.error("Delete error:", error);
@@ -253,7 +255,7 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
         setIsGeneratingAI(true);
         try {
             // 1. Fetch Master Prompt from the server/repo
-            const promptRes = await fetch('/benchmark-intel/ai_prompt.txt');
+            const promptRes = await fetch(`/ai_prompt.txt?t=${Date.now()}`);
             let masterPrompt = "";
             if (promptRes.ok) {
                 masterPrompt = await promptRes.text();
@@ -378,8 +380,17 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
             const loadingTask = pdfjsLib.getDocument({ url: localUrl, disableAutoFetch: true });
             const pdf = await loadingTask.promise;
             const page = await pdf.getPage(1);
+            const nativeViewport = page.getViewport({ scale: 1.0 });
             
-            const viewport = page.getViewport({ scale: 2.0 }); 
+            // Dynamically calculate scale to prevent canvas memory limits on huge architectural PDFs
+            // We cap the maximum dimension (width or height) to 2500 pixels.
+            const maxDimension = Math.max(nativeViewport.width, nativeViewport.height);
+            let targetScale = 2.0;
+            if (maxDimension * targetScale > 2500) {
+                targetScale = 2500 / maxDimension;
+            }
+            
+            const viewport = page.getViewport({ scale: targetScale }); 
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');
             canvas.height = viewport.height;
@@ -415,14 +426,43 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
     };
 
     const generateFigmaPayload = async () => {
-        let aiData = {};
+        let aiData = { projectDescription: '', floors: [], extras: '' };
         if (project.aiDescription) {
+            const text = project.aiDescription.trim();
+            // 1. Try parsing as JSON first (handles cached/legacy runs)
+            let isJson = false;
             try {
-                const cleaned = project.aiDescription.replace(/```(json)?|```/g, '').trim();
-                aiData = JSON.parse(cleaned);
+                const cleaned = text.replace(/```(json)?|```/g, '').trim();
+                if (cleaned.startsWith('{')) {
+                    const parsed = JSON.parse(cleaned);
+                    aiData = {
+                        projectDescription: parsed.projectDescription || '',
+                        floors: Array.isArray(parsed.floors) ? parsed.floors : [],
+                        extras: parsed.extras || ''
+                    };
+                    isJson = true;
+                }
             } catch (e) {
-                console.warn("Could not parse aiDescription as JSON", e);
-                aiData = { projectDescription: project.aiDescription };
+                console.warn("Not standard JSON, falling back to plain-text parser");
+            }
+
+            // 2. Fallback to Plain-text regex parser if not JSON
+            if (!isJson) {
+                const sections = text.split(/(PROJECT DESCRIPTION:|Ground Floor:|First Floor:|Second Floor:|Extras:)/i);
+                for (let i = 1; i < sections.length; i += 2) {
+                    const header = sections[i].toLowerCase();
+                    const content = sections[i+1]?.trim() || '';
+                    if (header.includes('project description')) aiData.projectDescription = content;
+                    else if (header.includes('ground floor')) aiData.floors.push({ floorLevel: 'Ground Floor', floorSummary: content });
+                    else if (header.includes('first floor')) aiData.floors.push({ floorLevel: 'First Floor', floorSummary: content });
+                    else if (header.includes('second floor') || header.includes('loft')) aiData.floors.push({ floorLevel: 'Second Floor', floorSummary: content });
+                    else if (header.includes('extras')) aiData.extras = content;
+                }
+                
+                // Absolute fallback if no specific markers found
+                if (!aiData.projectDescription && aiData.floors.length === 0) {
+                    aiData.projectDescription = text;
+                }
             }
         }
 
@@ -540,8 +580,10 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
         const documentListData = [];
         for (const file of projectFiles.filter(f => f.url)) {
             const docData = await resolveImage(file);
+            const title = getDocTitle(file);
             documentListData.push({
-                docTitle: getDocTitle(file),
+                docTitle: title,
+                linkText: `Link to ${title}`, // Combined text for Figma links
                 docLink: docData.link || '',   // URL for hyperlink
                 docPreview: docData.png || '',
                 isSuperseded: !!file.isSuperseded
@@ -614,34 +656,65 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
 
     const renderAIDescription = () => {
         if (!project.aiDescription) return null;
+        
+        const text = project.aiDescription.trim();
+        let parsed = { projectDescription: '', floors: [], extras: '' };
+        let isJson = false;
+
+        // 1. Try parsing as JSON first
         try {
-            const cleaned = project.aiDescription.replace(/```(json)?|```/g, '').trim();
-            const aiData = JSON.parse(cleaned);
-            return (
-                <div className="space-y-6">
-                    {aiData.projectDescription && (
-                        <div>
-                            <h4 className="text-sm font-bold text-gray-900 mb-2">Project Description</h4>
-                            <p className="text-gray-700 leading-relaxed text-base">{aiData.projectDescription}</p>
-                        </div>
-                    )}
-                    {aiData.floors && Array.isArray(aiData.floors) && aiData.floors.map((floor, idx) => (
-                        <div key={idx}>
-                            <h4 className="text-sm font-bold text-gray-900 mb-2">{floor.floorLevel || 'Floor'}</h4>
-                            <p className="text-gray-700 leading-relaxed text-base">{floor.floorSummary}</p>
-                        </div>
-                    ))}
-                    {aiData.extras && (
-                        <div>
-                            <h4 className="text-sm font-bold text-gray-900 mb-2">Extras / External Materials</h4>
-                            <p className="text-gray-700 leading-relaxed text-base">{aiData.extras}</p>
-                        </div>
-                    )}
-                </div>
-            );
+            const cleaned = text.replace(/```(json)?|```/g, '').trim();
+            if (cleaned.startsWith('{')) {
+                const config = JSON.parse(cleaned);
+                parsed.projectDescription = config.projectDescription || '';
+                parsed.floors = Array.isArray(config.floors) ? config.floors : [];
+                parsed.extras = config.extras || '';
+                isJson = true;
+            }
         } catch (e) {
-            return <div className="text-gray-800 leading-relaxed text-base space-y-4" dangerouslySetInnerHTML={{ __html: project.aiDescription.replace(/\n/g, '<br />') }} />;
+            console.warn("Not JSON, reverting to text rendering");
         }
+
+        // 2. Fallback to Section matching
+        if (!isJson) {
+            const sections = text.split(/(PROJECT DESCRIPTION:|Ground Floor:|First Floor:|Second Floor:|Extras:)/i);
+            for (let i = 1; i < sections.length; i += 2) {
+                const header = sections[i].toLowerCase();
+                const content = sections[i+1]?.trim() || '';
+                if (header.includes('project description')) parsed.projectDescription = content;
+                else if (header.includes('ground floor')) parsed.floors.push({ floorLevel: 'Ground Floor', floorSummary: content });
+                else if (header.includes('first floor')) parsed.floors.push({ floorLevel: 'First Floor', floorSummary: content });
+                else if (header.includes('second floor')) parsed.floors.push({ floorLevel: 'Second Floor', floorSummary: content });
+                else if (header.includes('extras')) parsed.extras = content;
+            }
+        }
+
+        if (!parsed.projectDescription && !parsed.floors.length && !parsed.extras) {
+            return <div className="text-gray-800 leading-relaxed text-base space-y-4" dangerouslySetInnerHTML={{ __html: text.replace(/\n/g, '<br />') }} />;
+        }
+
+        return (
+            <div className="space-y-6">
+                {parsed.projectDescription && (
+                    <div>
+                        <h4 className="text-sm font-bold text-gray-900 mb-2">Project Description</h4>
+                        <p className="text-gray-700 leading-relaxed text-base">{parsed.projectDescription}</p>
+                    </div>
+                )}
+                {parsed.floors.map((floor, idx) => (
+                    <div key={idx}>
+                        <h4 className="text-sm font-bold text-gray-900 mb-2">{floor.floorLevel}</h4>
+                        <p className="text-gray-700 leading-relaxed text-base">{floor.floorSummary}</p>
+                    </div>
+                ))}
+                {parsed.extras && (
+                    <div>
+                        <h4 className="text-sm font-bold text-gray-900 mb-2">Extras / External Materials</h4>
+                        <p className="text-gray-700 leading-relaxed text-base">{parsed.extras}</p>
+                    </div>
+                )}
+            </div>
+        );
     };
 
     if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>;

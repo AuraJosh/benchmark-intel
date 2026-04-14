@@ -770,9 +770,11 @@ const Projects = () => {
                     };
 
                     await updateDoc(doc(db, 'projects', activeProject.id), {
-                        finishedProjectPack: packData
+                        finishedProjectPack: packData,
+                        status: 'Pack Created'
                     });
 
+                    setEditStatus('Pack Created');
                     setIsUploadingPack(false);
                     setUploadProgress(0);
                     if (packInputRef.current) packInputRef.current.value = '';
@@ -799,8 +801,10 @@ const Projects = () => {
                     const packRef = ref(storage, activeProject.finishedProjectPack.fullPath);
                     await deleteObject(packRef);
                     await updateDoc(doc(db, 'projects', activeProject.id), {
-                        finishedProjectPack: null
+                        finishedProjectPack: null,
+                        status: 'Pack Required'
                     });
+                    setEditStatus('Pack Required');
                     setConfirmation({ ...confirmation, isOpen: false });
                 } catch (error) {
                     console.error("Delete error:", error);
