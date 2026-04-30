@@ -4,7 +4,10 @@ import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDocs, where, deleteDoc } from 'firebase/firestore';
 import { MapPin, Navigation, Map as MapIcon, Loader2, User, Users, ExternalLink, Calendar, CheckCircle2, ChevronRight, Save, Trash2, X, Activity, Eye, EyeOff, ClipboardList } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
+
+const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Quoted', 'Won', 'Paid', 'Revisit', 'Archive', 'Assigned'];
 
 const Routing = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -26,7 +29,11 @@ const Routing = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [routeToDelete, setRouteToDelete] = useState(null);
     const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem('benchmark_routing_hideCompleted') === 'true');
-    const [searchQuery, setSearchQuery] = useState(''); // Added for future use or to match Invoices pattern if needed
+    const [searchQuery, setSearchQuery] = useState(''); 
+
+    const routesListRef = useScrollRestoration('routes-list', [loading]);
+    const stopsListRef = useScrollRestoration(`stops-list-${selectedRoute?.id || 'none'}`, [!selectedRoute || routeProjects.length === 0]);
+    const rightPanelRef = useScrollRestoration(`routing-panel-${selectedRoute?.id || 'none'}`, [!selectedRoute]);
     
 
 
@@ -446,6 +453,31 @@ const Routing = () => {
 
     const handleToggleComplete = async (id, currentStatus) => {
         try {
+            // If we are marking the route as complete, tag the completed projects
+            if (!currentStatus) {
+                // Format date as DD/MM/YY
+                const routeDate = selectedRoute.date ? new Date(selectedRoute.date) : new Date();
+                const day = String(routeDate.getDate()).padStart(2, '0');
+                const month = String(routeDate.getMonth() + 1).padStart(2, '0');
+                const year = String(routeDate.getFullYear()).slice(-2);
+                const tagDate = `${day}/${month}/${year}`;
+
+                // Iterate through routeProjects and tag completed ones
+                for (const project of routeProjects) {
+                    if (project.completed) {
+                        const projectRef = doc(db, 'projects', project.id);
+                        
+                        // Check if the tag already exists to avoid duplicates
+                        const existingTags = project.tags || [];
+                        if (!existingTags.includes(tagDate)) {
+                            await updateDoc(projectRef, {
+                                tags: [...existingTags, tagDate]
+                            });
+                        }
+                    }
+                }
+            }
+
             await updateDoc(doc(db, 'routes', id), { completed: !currentStatus });
         } catch (error) {
             console.error("Error toggling complete:", error);
@@ -529,7 +561,7 @@ const Routing = () => {
 
             {/* Main Table View */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col min-h-0 flex-1">
-                <div className="overflow-auto flex-1 relative mini-scroll">
+                <div ref={routesListRef} className="overflow-auto flex-1 relative mini-scroll">
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>
@@ -593,10 +625,17 @@ const Routing = () => {
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-4 text-right hidden md:table-cell">
-                                            <div className="flex items-center justify-end gap-3">
-                                                <button className="text-[#0284c7] hover:text-[#0369a1] font-semibold text-sm">View Details</button>
-                                                <button onClick={(e) => handleDeleteRoute(r.id, e)} className="text-gray-400 hover:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100" title="Delete Route"><Trash2 className="h-4 w-4"/></button>
+                                        <td className="px-4 py-4 text-right">
+                                            <div className="flex items-center justify-end gap-2 sm:gap-3">
+                                                <button className="hidden md:block text-[#0284c7] hover:text-[#0369a1] font-semibold text-sm">View Details</button>
+                                                <button 
+                                                    onClick={(e) => handleDeleteRoute(r.id, e)} 
+                                                    className="text-gray-400 hover:text-red-500 transition-colors p-2 md:p-1 md:opacity-0 md:group-hover:opacity-100" 
+                                                    title="Delete Route"
+                                                >
+                                                    <Trash2 className="h-4 w-4"/>
+                                                </button>
+                                                <ChevronRight className="md:hidden h-5 w-5 text-gray-300" />
                                             </div>
                                         </td>
                                     </tr>
@@ -644,11 +683,11 @@ const Routing = () => {
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto px-6 py-6 mini-scroll bg-white">
+                        <div ref={rightPanelRef} className="flex-1 overflow-y-auto px-6 py-6 mini-scroll bg-white">
                             <div className="max-w-6xl mx-auto space-y-8 pb-12">
                                 
                                 {/* Route Configuration */}
-                                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-6">
+                                <div className="bg-gray-50 rounded-xl p-4 sm:p-6 border border-gray-200 space-y-6">
                                     <h2 className="text-xs font-black uppercase text-gray-400 tracking-widest mb-4">Route Configuration</h2>
                                     
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -659,17 +698,17 @@ const Routing = () => {
                                                     <div className="pl-3 flex items-center text-gray-400"><MapPin className="h-4 w-4" /></div>
                                                     <input 
                                                         ref={startInputRef}
-                                                        className="w-full py-2 px-3 text-sm focus:outline-none placeholder:text-gray-300" 
+                                                        className="w-full py-2 px-3 text-sm focus:outline-none placeholder:text-gray-300 min-w-0" 
                                                         placeholder="e.g. 38 Melrosegate, York"
                                                         defaultValue={startAddress}
                                                     />
                                                     {startAddress && (
-                                                        <button onClick={() => { setStartAddress(''); if(startInputRef.current) startInputRef.current.value = ''; updateDoc(doc(db, 'routes', selectedRoute.id), { startAddress: '' }).catch(console.error); }} className="pr-3 flex items-center text-gray-400 hover:text-gray-600">
+                                                        <button onClick={() => { setStartAddress(''); if(startInputRef.current) startInputRef.current.value = ''; updateDoc(doc(db, 'routes', selectedRoute.id), { startAddress: '' }).catch(console.error); }} className="pr-3 flex items-center text-gray-400 hover:text-gray-600 shrink-0">
                                                             <X className="h-3.5 w-3.5" />
                                                         </button>
                                                     )}
                                                 </div>
-                                                <p className="text-[10px] text-gray-400 mt-1">Powered by Google Maps — suggestions appear as you type</p>
+                                                <p className="text-[10px] text-gray-400 mt-1">Suggestions appear as you type</p>
                                             </div>
 
                                             <div>
@@ -678,17 +717,17 @@ const Routing = () => {
                                                     <div className="pl-3 flex items-center text-gray-400"><CheckCircle2 className="h-4 w-4" /></div>
                                                     <input 
                                                         ref={endInputRef}
-                                                        className="w-full py-2 px-3 text-sm focus:outline-none placeholder:text-gray-300" 
+                                                        className="w-full py-2 px-3 text-sm focus:outline-none placeholder:text-gray-300 min-w-0" 
                                                         placeholder="e.g. 15 Station Road, York"
                                                         defaultValue={endAddress}
                                                     />
                                                     {endAddress && (
-                                                        <button onClick={() => { setEndAddress(''); if(endInputRef.current) endInputRef.current.value = ''; updateDoc(doc(db, 'routes', selectedRoute.id), { endAddress: '' }).catch(console.error); }} className="pr-3 flex items-center text-gray-400 hover:text-gray-600">
+                                                        <button onClick={() => { setEndAddress(''); if(endInputRef.current) endInputRef.current.value = ''; updateDoc(doc(db, 'routes', selectedRoute.id), { endAddress: '' }).catch(console.error); }} className="pr-3 flex items-center text-gray-400 hover:text-gray-600 shrink-0">
                                                             <X className="h-3.5 w-3.5" />
                                                         </button>
                                                     )}
                                                 </div>
-                                                <p className="text-[10px] text-gray-400 mt-1">Leave blank to use Round Trip or end at the last stop</p>
+                                                <p className="text-[10px] text-gray-400 mt-1">Leave blank to use Round Trip</p>
                                             </div>
                                         </div>
                                         
@@ -699,7 +738,7 @@ const Routing = () => {
                                                     <button
                                                         key={val}
                                                         onClick={() => handleAssign(val)}
-                                                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold border transition ${assignedTo === val ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'}`}
+                                                        className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-bold border transition ${assignedTo === val ? 'bg-[#0f172a] text-white border-[#0f172a]' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'}`}
                                                     >
                                                         {val === 'JW & JD' ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
                                                         {val}
@@ -712,7 +751,7 @@ const Routing = () => {
                                                         <span className="text-xs font-bold text-[#0f172a]">Round Trip</span>
                                                         <span className="text-[10px] text-gray-500">Return to starting location</span>
                                                     </div>
-                                                    <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${isRoundTrip ? 'bg-blue-600' : 'bg-gray-200'}`} onClick={() => setIsRoundTrip(!isRoundTrip)}>
+                                                    <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${isRoundTrip ? 'bg-blue-600' : 'bg-gray-200'}`} onClick={() => setIsRoundTrip(!isRoundTrip)}>
                                                         <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isRoundTrip ? 'translate-x-4' : 'translate-x-0'}`} />
                                                     </div>
                                                 </label>
@@ -722,7 +761,7 @@ const Routing = () => {
                                                         <span className="text-xs font-bold text-[#0f172a]">Live Traffic Aware</span>
                                                         <span className="text-[10px] text-gray-500">Accounts for current congestion</span>
                                                     </div>
-                                                    <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${useTraffic ? 'bg-blue-600' : 'bg-gray-200'}`} onClick={() => setUseTraffic(!useTraffic)}>
+                                                    <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${useTraffic ? 'bg-blue-600' : 'bg-gray-200'}`} onClick={() => setUseTraffic(!useTraffic)}>
                                                         <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${useTraffic ? 'translate-x-4' : 'translate-x-0'}`} />
                                                     </div>
                                                 </label>
@@ -742,7 +781,7 @@ const Routing = () => {
                                                     ) : (
                                                         <Navigation className="h-4 w-4" />
                                                     )}
-                                                    {isCalculating ? 'Calculating Best Route...' : showSuccessFeedback ? 'Route Optimized!' : 'Find Quickest Route'}
+                                                    {isCalculating ? 'Calculating...' : showSuccessFeedback ? 'Optimized!' : 'Find Quickest Route'}
                                                 </button>
                                             </div>
                                         </div>
@@ -766,7 +805,7 @@ const Routing = () => {
                                         <h2 className="text-sm font-bold text-[#0f172a] uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-gray-100 pb-2 shrink-0">
                                             Stops ({routeProjects.length})
                                         </h2>
-                                        <div className="space-y-3 overflow-y-auto mini-scroll pr-2 flex-1 pb-4">
+                                        <div ref={stopsListRef} className="space-y-3 overflow-y-auto mini-scroll pr-2 flex-1 pb-4">
                                             {routeProjects.length === 0 ? (
                                                 <div className="p-8 text-center text-gray-400 bg-gray-50 rounded-xl border border-gray-100 border-dashed">No projects added.</div>
                                             ) : (
@@ -784,14 +823,59 @@ const Routing = () => {
                                                             </div>
                                                         </div>
                                                     ) : routeProjects.length > 0 && (
-                                                         <div className="flex items-center gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm relative overflow-hidden">
+                                                         <div className="flex items-center gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm relative group transition-all">
                                                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500"></div>
-                                                            <div className="h-8 w-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-black shrink-0 text-xs">
+                                                            <div className="h-8 w-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-black shrink-0 text-xs shadow-sm shadow-green-200">
                                                                 Start
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <h3 className="font-bold text-[#0f172a] truncate">{routeProjects[0].address}</h3>
-                                                                <p className="text-xs text-gray-500 truncate mt-0.5">Starting at First Project</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            const projectRef = doc(db, 'projects', routeProjects[0].id);
+                                                                            await updateDoc(projectRef, { completed: !routeProjects[0].completed });
+                                                                        }}
+                                                                        className={`flex-shrink-0 h-5 w-5 rounded border flex items-center justify-center transition-colors ${routeProjects[0].completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-blue-400'}`}
+                                                                    >
+                                                                        {routeProjects[0].completed && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                                                    </button>
+                                                                    <h3 className={`font-bold text-[#0f172a] truncate ${routeProjects[0].completed ? 'line-through text-gray-400 opacity-60' : ''}`}>{routeProjects[0].address}</h3>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1.5">
+                                                                    <select 
+                                                                        value={routeProjects[0].status || 'New'} 
+                                                                        onChange={async (e) => {
+                                                                            const newStatus = e.target.value;
+                                                                            const projectRef = doc(db, 'projects', routeProjects[0].id);
+                                                                            await updateDoc(projectRef, { status: newStatus });
+                                                                        }}
+                                                                        className="text-[11px] sm:text-[10px] font-extrabold bg-white/50 text-gray-600 px-2 py-1 rounded border border-gray-200 outline-none"
+                                                                    >
+                                                                        {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                                    </select>
+                                                                    <p className="text-xs text-blue-600 font-medium truncate">Starting at First Project</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-2 shrink-0">
+                                                                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-green-50 text-green-700 border border-green-100">
+                                                                    Terminal
+                                                                </span>
+                                                                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                                    <button 
+                                                                        onClick={() => navigate(`/capture?id=${routeProjects[0].id}`)}
+                                                                        className="p-2 sm:p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition shrink-0"
+                                                                        title="Add Quick Capture"
+                                                                    >
+                                                                        <ClipboardList className="h-5 w-5 sm:h-4 sm:w-4" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => navigate(`/projects?id=${routeProjects[0].id}&backTo=${encodeURIComponent(`/routing?id=${selectedRoute.id}`)}`)}
+                                                                        className="p-2 sm:p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
+                                                                        title="View Project Details"
+                                                                    >
+                                                                        <ExternalLink className="h-5 w-5 sm:h-4 sm:w-4" />
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     )}
@@ -804,7 +888,7 @@ const Routing = () => {
                                                     if (isPrimaryStart || isPrimaryEnd) return null;
 
                                                     return (
-                                                        <div key={p.id} className="flex items-center gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 hover:shadow-md transition-all group relative overflow-hidden">
+                                                        <div key={p.id} className="flex items-center gap-4 bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:border-blue-200 hover:shadow-md transition-all group relative">
                                                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                                             <div className="h-8 w-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center font-black shrink-0 text-sm shadow-sm border border-blue-100/50">
                                                                 {idx + 1}
@@ -825,9 +909,21 @@ const Routing = () => {
                                                                         {p.address}
                                                                     </h3>
                                                                 </div>
-                                                                <div className="flex items-center gap-2 mt-1">
-                                                                    <span className="text-[10px] font-extrabold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded tracking-wide uppercase">{p.status}</span>
-                                                                    {p.applicantName && <span className="text-[10px] text-gray-500 truncate"><User className="inline h-3 w-3 mr-0.5"/> {p.applicantName}</span>}
+                                                                <div className="flex items-center gap-2 mt-1.5">
+                                                                    <select 
+                                                                        value={p.status || 'New'} 
+                                                                        onChange={async (e) => {
+                                                                            const newStatus = e.target.value;
+                                                                            const projectRef = doc(db, 'projects', p.id);
+                                                                            await updateDoc(projectRef, { status: newStatus });
+                                                                        }}
+                                                                        className="text-[11px] sm:text-[10px] font-extrabold bg-gray-50 text-gray-600 px-2 py-1 sm:px-1.5 sm:py-0.5 rounded border border-gray-200 tracking-wide uppercase cursor-pointer hover:bg-white hover:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all outline-none"
+                                                                    >
+                                                                        {STATUS_OPTIONS.map(opt => (
+                                                                            <option key={opt} value={opt}>{opt}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    {p.applicantName && <span className="text-[11px] sm:text-[10px] text-gray-500 truncate"><User className="inline h-3 w-3 mr-0.5"/> {p.applicantName.split(' ')[0]}</span>}
                                                                 </div>
                                                                 
                                                                 {/* Quick Notes Input */}
@@ -842,28 +938,28 @@ const Routing = () => {
                                                                                 await updateDoc(projectRef, { notes: e.target.value });
                                                                             }
                                                                         }}
-                                                                        className="w-full text-[11px] bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-300 rounded-lg px-3 py-1.5 placeholder-gray-400 transition-all outline-none border"
+                                                                        className="w-full text-xs sm:text-[11px] bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-300 rounded-lg px-3 py-2 sm:py-1.5 placeholder-gray-400 transition-all outline-none border"
                                                                     />
                                                                 </div>
                                                             </div>
-                                                            <div className="flex flex-col items-end gap-2">
-                                                                <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap hidden group-hover:block animate-in zoom-in slide-in-from-right-2 duration-200 ${p.completed ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                                            <div className="flex flex-col items-end gap-2 shrink-0">
+                                                                <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap md:hidden md:group-hover:block border animate-in zoom-in slide-in-from-right-2 duration-200 ${p.completed ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
                                                                     {p.completed ? 'Completed' : `Stop ${idx + 1}`}
                                                                 </span>
-                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                                     <button 
                                                                         onClick={() => navigate(`/capture?id=${p.id}`)}
-                                                                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition shrink-0"
+                                                                        className="p-2 sm:p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition shrink-0"
                                                                         title="Add Quick Capture"
                                                                     >
-                                                                        <ClipboardList className="h-4 w-4" />
+                                                                        <ClipboardList className="h-5 w-5 sm:h-4 sm:w-4" />
                                                                     </button>
                                                                     <button 
                                                                         onClick={() => navigate(`/projects?id=${p.id}&backTo=${encodeURIComponent(`/routing?id=${selectedRoute.id}`)}`)}
-                                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
+                                                                        className="p-2 sm:p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
                                                                         title="View Project Details"
                                                                     >
-                                                                        <ExternalLink className="h-4 w-4" />
+                                                                        <ExternalLink className="h-5 w-5 sm:h-4 sm:w-4" />
                                                                     </button>
                                                                 </div>
                                                             </div>
@@ -895,14 +991,59 @@ const Routing = () => {
                                                             </div>
                                                         </div>
                                                     ) : routeProjects.length > 1 && (
-                                                        <div className="flex items-center gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm relative overflow-hidden">
+                                                        <div className="flex items-center gap-4 bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm relative group transition-all">
                                                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-500"></div>
-                                                            <div className="h-8 w-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-black shrink-0 text-xs">
+                                                            <div className="h-8 w-8 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-black shrink-0 text-xs shadow-sm shadow-red-200">
                                                                 End
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <h3 className="font-bold text-[#0f172a] truncate">{routeProjects[routeProjects.length - 1].address}</h3>
-                                                                <p className="text-xs text-gray-500 truncate mt-0.5">Ending at Final Project</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button 
+                                                                        onClick={async () => {
+                                                                            const projectRef = doc(db, 'projects', routeProjects[routeProjects.length - 1].id);
+                                                                            await updateDoc(projectRef, { completed: !routeProjects[routeProjects.length - 1].completed });
+                                                                        }}
+                                                                        className={`flex-shrink-0 h-5 w-5 rounded border flex items-center justify-center transition-colors ${routeProjects[routeProjects.length - 1].completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-blue-400'}`}
+                                                                    >
+                                                                        {routeProjects[routeProjects.length - 1].completed && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                                                    </button>
+                                                                    <h3 className={`font-bold text-[#0f172a] truncate ${routeProjects[routeProjects.length - 1].completed ? 'line-through text-gray-400 opacity-60' : ''}`}>{routeProjects[routeProjects.length - 1].address}</h3>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1.5">
+                                                                    <select 
+                                                                        value={routeProjects[routeProjects.length - 1].status || 'New'} 
+                                                                        onChange={async (e) => {
+                                                                            const newStatus = e.target.value;
+                                                                            const projectRef = doc(db, 'projects', routeProjects[routeProjects.length - 1].id);
+                                                                            await updateDoc(projectRef, { status: newStatus });
+                                                                        }}
+                                                                        className="text-[11px] sm:text-[10px] font-extrabold bg-white/50 text-gray-600 px-2 py-1 rounded border border-gray-200 outline-none"
+                                                                    >
+                                                                        {STATUS_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                                    </select>
+                                                                    <p className="text-xs text-red-600 font-medium truncate">Ending at Final Project</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-2 shrink-0">
+                                                                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-100">
+                                                                    Terminal
+                                                                </span>
+                                                                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                                    <button 
+                                                                        onClick={() => navigate(`/capture?id=${routeProjects[routeProjects.length - 1].id}`)}
+                                                                        className="p-2 sm:p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition shrink-0"
+                                                                        title="Add Quick Capture"
+                                                                    >
+                                                                        <ClipboardList className="h-5 w-5 sm:h-4 sm:w-4" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => navigate(`/projects?id=${routeProjects[routeProjects.length - 1].id}&backTo=${encodeURIComponent(`/routing?id=${selectedRoute.id}`)}`)}
+                                                                        className="p-2 sm:p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition shrink-0"
+                                                                        title="View Project Details"
+                                                                    >
+                                                                        <ExternalLink className="h-5 w-5 sm:h-4 sm:w-4" />
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     )}
