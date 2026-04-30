@@ -13,6 +13,7 @@ import { generateCustomProjectId } from '../utils/projectIds';
 import PackWorkspace from './PackWorkspace';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { openExternalLink } from '../utils/opener';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
 // Fix for default marker icons in React Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -22,21 +23,30 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
+const getWBDateString = (dateValue) => {
+    if (!dateValue) return null;
+    const date = new Date(dateValue);
+    if (isNaN(date.getTime())) return null;
+    
+    // Normalize to Monday of that week
+    const now = new Date(date);
+    const day = now.getDay();
+    const diffToAdd = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now.getTime() + diffToAdd * 24 * 60 * 60 * 1000);
+
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const dayStr = String(monday.getDate()).padStart(2, '0');
+    const monthStr = monthNames[monday.getMonth()];
+    const yearStr = monday.getFullYear();
+    return `${dayStr} ${monthStr} ${yearStr}`;
+};
+
 const generateWBDates = (weeksBack = 52) => {
     const dates = [];
     const now = new Date();
-    const day = now.getDay();
-    const diffToAdd = day === 0 ? -6 : 1 - day;
-    const currentMonday = new Date(now.getTime() + diffToAdd * 24 * 60 * 60 * 1000);
-
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
     for (let i = 0; i < weeksBack; i++) {
-        const monday = new Date(currentMonday.getTime() - (i * 7 * 24 * 60 * 60 * 1000));
-        const dayStr = String(monday.getDate()).padStart(2, '0');
-        const monthStr = monthNames[monday.getMonth()];
-        const yearStr = monday.getFullYear();
-        dates.push(`${dayStr} ${monthStr} ${yearStr}`);
+        const d = new Date(now.getTime() - (i * 7 * 24 * 60 * 60 * 1000));
+        dates.push(getWBDateString(d));
     }
     return dates;
 };
@@ -274,6 +284,7 @@ const Projects = () => {
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState(null);
     const [syncReport, setSyncReport] = useState(null);
+    const [syncProgress, setSyncProgress] = useState(null);
 
     const [showSyncModal, setShowSyncModal] = useState(false);
     const [selectedSyncDate, setSelectedSyncDate] = useState('current');
@@ -285,15 +296,18 @@ const Projects = () => {
     const [newProjectCollection, setNewProjectCollection] = useState('');
 
     const [sortBy, setSortBy] = useState('dateDecidedDesc');
-    const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Pack Sent', 'Quoted', 'Won', 'Paid', 'Revisit', 'Archive', 'Assigned'];
+    const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Quoted', 'Won', 'Paid', 'Revisit', 'Archive', 'Assigned'];
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterCollection, setFilterCollection] = useState('All');
+    const [filterWeek, setFilterWeek] = useState('All');
     const [showArchive, setShowArchive] = useState(() => localStorage.getItem('benchmark_projects_showArchive') === 'true');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 20;
 
     const [selectedRowIds, setSelectedRowIds] = useState([]);
     const [batchCollectionName, setBatchCollectionName] = useState('');
+    
+    const scrollContainerRef = useScrollRestoration('projects-list', [loading, currentPage, viewMode]);
     
     // Routing state
     const [routesList, setRoutesList] = useState([]);
@@ -347,6 +361,15 @@ const Projects = () => {
     useEffect(() => {
         setViewMode(location.pathname === '/map' ? 'map' : 'list');
     }, [location.pathname]);
+
+    useEffect(() => {
+        const unsubscribe = onSnapshot(doc(db, 'system', 'sync_status'), (docSnap) => {
+            if (docSnap.exists()) {
+                setSyncProgress(docSnap.data());
+            }
+        });
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         const q = query(collection(db, 'projects'), orderBy('timestamp', 'desc'));
@@ -499,7 +522,7 @@ const Projects = () => {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, filterStatus, filterCollection, sortBy]);
+    }, [searchQuery, filterStatus, filterCollection, filterWeek, sortBy]);
 
     // Compute available collections dynamically based on all projects
     const availableCollections = Array.from(new Set(
@@ -513,6 +536,16 @@ const Projects = () => {
             return acc;
         }, [])
     )).filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+    // Dynamic weeks based on actual project data
+    const availableWeeks = Array.from(new Set(
+        projects.map(p => getWBDateString(p.dateDecided)).filter(Boolean)
+    )).sort((a, b) => {
+        // Sort by date descending (Newest first)
+        const dateA = new Date(a);
+        const dateB = new Date(b);
+        return dateB - dateA;
+    });
 
     let filteredProjects = projects.filter(p => {
         const searchTerms = searchQuery.toLowerCase();
@@ -529,13 +562,19 @@ const Projects = () => {
             ? (showArchive ? true : p.status !== 'Archive')
             : filterStatus === 'Assigned'
                 ? allAssignments.some(assign => assign.projectId === p.id)
-                : p.status === filterStatus;
+                : filterStatus === 'New + Revisit'
+                    ? (p.status === 'New' || p.status === 'Revisit')
+                    : p.status === filterStatus;
 
         const matchesCollection = filterCollection === 'All'
             ? true
             : (p.collections && p.collections.includes(filterCollection)) || (p.collectionId === filterCollection);
 
-        return matchesSearch && matchesStatus && matchesCollection;
+        const matchesWeek = filterWeek === 'All'
+            ? true
+            : getWBDateString(p.dateDecided) === filterWeek;
+
+        return matchesSearch && matchesStatus && matchesCollection && matchesWeek;
     });
 
     filteredProjects.sort((a, b) => {
@@ -798,8 +837,24 @@ const Projects = () => {
             type: 'danger',
             onConfirm: async () => {
                 try {
-                    const packRef = ref(storage, activeProject.finishedProjectPack.fullPath);
-                    await deleteObject(packRef);
+                    // Try to extract path from fullPath or fall back to URL extraction
+                    const path = activeProject.finishedProjectPack.fullPath || (activeProject.finishedProjectPack.url?.includes('/o/') 
+                        ? decodeURIComponent(activeProject.finishedProjectPack.url.split('/o/')[1].split('?')[0]) 
+                        : null);
+
+                    if (path) {
+                        try {
+                            const packRef = ref(storage, path);
+                            await deleteObject(packRef);
+                        } catch (storageErr) {
+                            // If file is already gone, proceed with cleaning the record
+                            if (storageErr.code !== 'storage/object-not-found') {
+                                throw storageErr;
+                            }
+                            console.warn("Storage object already deleted, cleaning Firestore record.");
+                        }
+                    }
+
                     await updateDoc(doc(db, 'projects', activeProject.id), {
                         finishedProjectPack: null,
                         status: 'Pack Required'
@@ -808,7 +863,7 @@ const Projects = () => {
                     setConfirmation({ ...confirmation, isOpen: false });
                 } catch (error) {
                     console.error("Delete error:", error);
-                    alert("Failed to delete project pack.");
+                    alert("Failed to delete project pack: " + (error.message || "Unknown error"));
                 }
             }
         });
@@ -816,12 +871,12 @@ const Projects = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+            <header className="mb-3 md:mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div className="min-w-0">
                     <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Projects</h1>
                     <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Track and manage planning application leads.</p>
                 </div>
-                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 shrink-0 w-full md:w-auto">
                     <div className="flex rounded-lg border border-gray-200 p-0.5 md:p-1 bg-gray-50/50">
                         <button onClick={() => navigate('/projects')} title="List View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <List className="h-3.5 w-3.5" /> <span className="hidden md:inline">List</span>
@@ -848,15 +903,36 @@ const Projects = () => {
             </header>
 
             {syncStatus && (
-                <div className={`mb-6 p-4 rounded-xl border flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300 ${syncStatus === 'success' ? 'bg-green-50 border-green-100 text-green-800' : syncStatus === 'error' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-blue-50 border-blue-100 text-blue-800'}`}>
-                    <div className="flex items-center gap-3">
-                        {syncStatus === 'success' ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <Activity className="h-5 w-5 animate-pulse text-blue-500" />}
-                        <div>
-                            <p className="text-sm font-bold">{syncStatus === 'success' ? 'Sync Complete' : syncStatus === 'error' ? 'Sync Failed' : 'Sync in progress...'}</p>
-                            {syncReport && <p className="text-xs mt-0.5 opacity-90">Added {syncReport.added} new projects, skipped {syncReport.skipped} existing.</p>}
+                <div className={`mb-6 p-4 rounded-xl border flex flex-col md:flex-row items-start md:items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300 gap-4 ${syncStatus === 'success' ? 'bg-green-50 border-green-100 text-green-800' : syncStatus === 'error' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-blue-50 border-blue-100 text-blue-800'}`}>
+                    <div className="flex items-start md:items-center gap-3 flex-1 w-full">
+                        {syncStatus === 'success' ? <CheckCircle2 className="h-6 w-6 text-green-500 mt-0.5 md:mt-0 shrink-0" /> : <Activity className="h-6 w-6 animate-pulse text-blue-500 mt-0.5 md:mt-0 shrink-0" />}
+                        <div className="flex-1 w-full">
+                            <p className="text-sm font-bold">{syncStatus === 'success' ? 'Sync Complete' : syncStatus === 'error' ? 'Sync Failed' : (syncProgress?.message || 'Sync in progress...')}</p>
+                            
+                            {syncStatus === 'waiting' && syncProgress?.status === 'running' && (
+                                <div className="w-full max-w-md h-2.5 bg-blue-200 rounded-full mt-2 overflow-hidden border border-blue-300">
+                                    <div 
+                                        className="h-full bg-blue-500 transition-all duration-300 ease-out" 
+                                        style={{ width: `${Math.max(5, syncProgress.progress || 0)}%` }}
+                                    ></div>
+                                </div>
+                            )}
+
+                            {syncReport && (
+                                <div className="mt-1.5 space-y-1">
+                                    <p className="text-xs font-medium">
+                                        Added <b>{syncReport.added}</b> new projects, skipped <b>{syncReport.skipped}</b> existing.
+                                    </p>
+                                    {syncReport.addedRefs && syncReport.addedRefs.length > 0 && (
+                                        <p className="text-[11px] opacity-80 leading-relaxed bg-white/50 p-2 rounded-lg border border-black/5 inline-block w-full max-w-2xl break-words">
+                                            <b>New Project References:</b> {syncReport.addedRefs.join(', ')}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
-                    <button onClick={() => setSyncStatus(null)} className="p-1 hover:bg-black/5 rounded-full"><X className="h-4 w-4" /></button>
+                    <button onClick={() => setSyncStatus(null)} className="p-1.5 hover:bg-black/5 rounded-full self-start md:self-center shrink-0"><X className="h-4 w-4" /></button>
                 </div>
             )}
 
@@ -872,20 +948,27 @@ const Projects = () => {
                             className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-[#0f172a] focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
                         />
                     </div>
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white flex-1 sm:flex-none min-w-[140px]">
                             <option value="All">All Statuses</option>
+                            <option value="New + Revisit">New + Revisit</option>
                             {STATUS_OPTIONS.map(status => (
                                 <option key={status} value={status}>{status}</option>
                             ))}
                         </select>
-                        <select value={filterCollection} onChange={(e) => setFilterCollection(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white max-w-[200px] truncate">
+                        <select value={filterCollection} onChange={(e) => setFilterCollection(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white max-w-[160px] truncate flex-1 sm:flex-none min-w-[140px]">
                             <option value="All">All Collections</option>
                             {availableCollections.map(col => (
                                 <option key={col} value={col}>{col}</option>
                             ))}
                         </select>
-                        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white">
+                        <select value={filterWeek} onChange={(e) => setFilterWeek(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white max-w-[160px] truncate flex-1 sm:flex-none min-w-[140px]">
+                            <option value="All">All Weeks</option>
+                            {availableWeeks.map(date => (
+                                <option key={date} value={date}>{date}</option>
+                            ))}
+                        </select>
+                        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white flex-1 sm:flex-none min-w-[140px]">
                             <option value="dateDecidedDesc">Decided (Newest)</option>
                             <option value="dateDecidedAsc">Decided (Oldest)</option>
                             <option value="status">Status</option>
@@ -894,10 +977,10 @@ const Projects = () => {
                 </div>
 
                 {selectedRowIds.length > 0 && (
-                    <div className="bg-blue-50/50 px-4 py-3 border-b border-blue-100 flex items-center justify-between animate-in slide-in-from-left-2 duration-200">
-                        <div className="flex items-center gap-3">
-                            <span className="text-sm font-bold text-blue-900">{selectedRowIds.length} projects selected</span>
-                            <div className="flex gap-4">
+                    <div className="bg-blue-50/50 px-4 py-3 border-b border-blue-100 flex flex-col md:flex-row items-start md:items-center justify-between animate-in slide-in-from-left-2 duration-200 gap-3">
+                        <div className="flex flex-col md:flex-row md:items-center gap-3 w-full">
+                            <span className="text-sm font-bold text-blue-900 shrink-0">{selectedRowIds.length} projects selected</span>
+                            <div className="flex flex-wrap gap-2 md:gap-4 w-full">
                                 <div className="flex gap-2 items-center">
                                     <input
                                         type="text"
@@ -955,7 +1038,7 @@ const Projects = () => {
 
                 {viewMode === 'list' ? (
                     <>
-                        <div className="flex-1 overflow-auto mini-scroll">
+                        <div ref={scrollContainerRef} className="flex-1 overflow-auto mini-scroll">
                             <table className="w-full text-left text-sm text-gray-600">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                                     <tr>
@@ -986,7 +1069,7 @@ const Projects = () => {
                                                         {project.collectionId && (!project.collections || !project.collections.includes(project.collectionId)) && (
                                                             <div className="text-[10px] text-blue-600 font-bold flex items-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 w-fit"><Filter className="h-2.5 w-2.5" />{project.collectionId}</div>
                                                         )}
-                                                        {(project.status === 'Pack Required' || project.status === 'Pack Created' || project.status === 'Pack Sent') && (
+                                                        {(project.status === 'Pack Required' || project.status === 'Pack Created' || project.status === 'Assigned') && (
                                                             <div className="text-[10px] text-gray-800 font-bold flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-300 shadow-sm w-fit" title="Project Pack ID">
                                                                 <FileText className="h-2.5 w-2.5" /> 
                                                                  {project.customId || generateCustomProjectId(project.address, project.reference, project.coordinates)}

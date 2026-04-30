@@ -89,7 +89,7 @@ export async function finalizeContract({ agreementId, signatureData, ip, userAge
             <body>
                 <div class="header">
                     <div>
-                        <h1>Benchmark Intel</h1>
+                        <h1>Benchmark Intelligence</h1>
                         <p style="margin: 5px 0 0 0; font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Finalized Legal Agreement</p>
                     </div>
                     <div class="meta">
@@ -161,7 +161,7 @@ export async function finalizeContract({ agreementId, signatureData, ip, userAge
                         <p class="legal-note">
                             This document is a legally binding electronic record as defined by the Electronics Communications Act 2000 (UK). 
                             Any modification to this document after the recorded timestamp voids the digital seal integrity. 
-                            Benchmark Intel maintains the primary immutable audit record for this transaction.
+                            Benchmark Intelligence maintains the primary immutable audit record for this transaction.
                         </p>
                     </div>
                 </div>
@@ -219,6 +219,25 @@ export async function finalizeContract({ agreementId, signatureData, ip, userAge
             finalized: true
         });
 
+        try {
+            const logData = {
+                category: 'Contract',
+                subject: 'Contract Finalized',
+                notes: `The ${version.title || 'Agreement'} has been signed and finalized by ${builder.companyName || 'the builder'}. This interaction was automatically captured by the signature portal.`,
+                timestamp: timestamp,
+                direction: 'Inbound',
+                staff: 'System',
+                mode: agreement.projectId ? 'homeowner' : 'builder'
+            };
+            if (agreement.projectId) logData.projectId = agreement.projectId;
+            if (agreement.builderId) logData.builderId = agreement.builderId;
+            
+            await db.collection('correspondence').add(logData);
+            console.log(`Auto-logged correspondence for agreement ${agreementId}`);
+        } catch (lErr) {
+            console.error("Failed to log correspondence auto-entry:", lErr);
+        }
+
         // 6. Send Email
         await sendReceiptEmail(builder.email, builder.ownerName, pdfBuffer, refId);
 
@@ -245,11 +264,37 @@ async function sendReceiptEmail(to, name, pdfBuffer, refId) {
         }
     });
 
+    const firstName = name ? name.split(' ')[0] : 'Builder';
+
     const mailOptions = {
-        from: '"Benchmark Intel" <noreply@benchmarkintelligence.co.uk>',
+        from: '"Benchmark Intelligence" <contact@benchmarkintelligence.co.uk>',
         to: to,
-        subject: `Finalized Contract: ${refId}`,
-        text: `Dear ${name},\n\nPlease find attached the finalized, signed copy of your contract (Ref: ${refId}).\n\nThis document has been tamper-sealed and stored in our secure audit trail.\n\nBest regards,\nBenchmark Intel Team`,
+        bcc: 'josh.witte.business@gmail.com, jamie.dark.business@gmail.com',
+        subject: 'Welcome to Benchmark Intelligence.',
+        html: `
+<p>Hi ${firstName},</p>
+
+<p>We are excited to officially welcome you to the Benchmark Intelligence network, we look forward to working with you.</p>
+
+<p>Now that the paperwork is finalised, please find the signed copy of your contract attached for your records (Contract Ref: <strong>${refId}</strong>).</p>
+
+<p><strong>What happens next?</strong> We can now begin sending over project packs as and when they become available, depending on your schedule. To get the most from our services, we request that you keep us in the loop with your availability and progress with projects and quoting. Regardless of outcome, it is very useful for us to know if you are following up with a project we have provided and whether or not that project suits you and your team.</p>
+
+<p>If you have any questions, need assistance or just want to give us an update on your availability, feel free to send us an email, drop us a text or give us a call. We are always happy to help.</p>
+
+<p>Welcome again to Benchmark. We can't wait to start building a successful partnership with you.</p>
+
+<p>All the best,</p>
+
+<p><strong>The Benchmark Intelligence Team</strong></p>
+
+<p><a href="https://benchmarkintelligence.co.uk">benchmarkintelligence.co.uk</a></p>
+
+<p>contact@benchmarkintelligence.co.uk</p>
+
+<p>Jamie - 07514 137437<br>
+Josh - 07724 092424</p>
+        `,
         attachments: [
             {
                 filename: `Contract_${refId}.pdf`,

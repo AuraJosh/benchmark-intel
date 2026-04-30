@@ -27,7 +27,7 @@ const Sidebar = ({ onClose }) => {
     ];
 
     return (
-        <div className="flex w-64 flex-col border-r border-gray-200 bg-white min-h-screen relative">
+        <div className="flex w-64 flex-col border-r border-gray-200 bg-white h-full min-h-screen md:h-screen relative overflow-hidden">
             {/* Mobile close button */}
             <button 
                 onClick={onClose}
@@ -39,13 +39,13 @@ const Sidebar = ({ onClose }) => {
             <Link 
                 to="/" 
                 onClick={() => onClose && onClose()}
-                className="flex h-16 items-center border-b border-gray-100 px-6 mt-4 mb-4 gap-3 hover:bg-gray-50 transition-colors"
+                className="flex h-15 items-center border-b border-gray-100 px-6 mt-3 mb-3 gap-3 hover:bg-gray-50 transition-colors"
             >
                 <img src={Logo} alt="Benchmark Intelligence" className="h-11 w-11 object-contain" />
                 <span className="text-[17px] font-semibold leading-tight tracking-tight text-[#0f172a]">Benchmark<br />Intelligence</span>
             </Link>
 
-            <nav className="flex-1 space-y-1.5 p-4 overflow-y-auto">
+            <nav className="flex-1 space-y-1 pt-1 px-3 pb-2 overflow-y-auto mini-scroll">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
@@ -55,7 +55,7 @@ const Sidebar = ({ onClose }) => {
                             onClick={() => onClose && onClose()}
                             target={item.external ? "_blank" : undefined}
                             rel={item.external ? "noopener noreferrer" : undefined}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${isActive && !item.external
+                            className={`flex items-center gap-3 rounded-lg px-3 py-[11px] text-sm font-medium transition-colors ${isActive && !item.external
                                 ? 'bg-blue-50 text-[#0284c7]'
                                 : 'text-gray-600 hover:bg-gray-100 hover:text-[#0f172a]'
                                 }`}
@@ -67,10 +67,10 @@ const Sidebar = ({ onClose }) => {
                 })}
             </nav>
 
-            <div className="border-t border-gray-100 p-4">
+            <div className="border-t border-gray-100 p-3">
                 <button
                     onClick={handleLogout}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-[11px] text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 transition-colors"
                 >
                     <LogOut className="h-5 w-5 text-gray-400" />
                     Sign Out

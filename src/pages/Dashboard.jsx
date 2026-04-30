@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, addDoc, deleteDoc, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import StatusBadge from '../components/StatusBadge';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 import { Network, Activity, FileSignature, Receipt, Users, Home, Loader2, Bell, EyeOff, Clock, CheckCircle2, ChevronLeft, ChevronRight, Plus, X, Calendar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
@@ -38,7 +40,6 @@ const Dashboard = () => {
         availableBuilders: 0,
         lastScrapeTime: null,
         breakdown: {
-            packSent: 0,
             packCreated: 0,
             packRequired: 0,
             assigned: 0,
@@ -61,6 +62,8 @@ const Dashboard = () => {
     const [thresholdDays, setThresholdDays] = useState(10);
     const [customTodos, setCustomTodos] = useState([]);
     const [showAddTodo, setShowAddTodo] = useState(false);
+    
+    const dashboardScrollRef = useScrollRestoration('dashboard-main', [loading]);
     const [newTodoText, setNewTodoText] = useState('');
     const [newTodoDate, setNewTodoDate] = useState('');
     const [isSavingTodo, setIsSavingTodo] = useState(false);
@@ -173,7 +176,6 @@ const Dashboard = () => {
 
         const monday = getRecentMonday();
         let thisWeek = 0;
-        let packSent = 0;
         let packCreated = 0;
         let packRequired = 0;
         let assigned = 0;
@@ -186,13 +188,11 @@ const Dashboard = () => {
 
             if (p.status === 'Archive' || p.status === 'Dead') {
                 archived++;
-            } else if (p.status === 'Pack Sent') {
-                packSent++;
             } else if (p.status === 'Pack Created') {
                 packCreated++;
             } else if (p.status === 'Pack Required' || p.status === 'Won') {
                 packRequired++;
-            } else if (assignments.some(a => a.projectId === p.id)) {
+            } else if (assignments.some(a => a.projectId === p.id) || p.status === 'Assigned') {
                 assigned++;
             } else {
                 pipeline++;
@@ -203,7 +203,6 @@ const Dashboard = () => {
             ...prev,
             thisWeekTotal: thisWeek,
             breakdown: {
-                packSent,
                 packCreated,
                 packRequired,
                 assigned,
@@ -273,6 +272,38 @@ const Dashboard = () => {
                         date: fuDate,
                         priority: isOverdue ? 1 : 2
                     });
+                }
+            }
+
+            // 1.5 Check for upcoming availability (Builders)
+            if (type === 'builder' && contact.availability === false && contact.anticipatedAvailabilityMonth) {
+                const [yearStr, monthStr] = contact.anticipatedAvailabilityMonth.split('-');
+                if (yearStr && monthStr) {
+                    const availMonth = parseInt(monthStr, 10) - 1; // 0-indexed
+                    const availYear = parseInt(yearStr, 10);
+                    const availDateForCompare = new Date(availYear, availMonth, 1);
+                    
+                    const mDiff = (availYear - now.getFullYear()) * 12 + availMonth - now.getMonth();
+                    
+                    if (mDiff >= 0 && mDiff <= 3) {
+                        const clearedAt = getDt(contact.reminderClearedAt);
+                        if (!clearedAt || clearedAt < availDateForCompare) { // Use availDateForCompare to know if it's new
+                            const snoozedUntil = getDt(contact.reminderSnoozedUntil);
+                            if (!snoozedUntil || snoozedUntil <= new Date()) {
+                                if (!reminderList.some(r => r.id === matchId + '-avail')) {
+                                    reminderList.push({
+                                        id: matchId + '-avail',
+                                        type: 'builder',
+                                        contactId: matchId,
+                                        name: contact.companyName || 'Unnamed Builder',
+                                        status: mDiff === 0 ? 'Available This Month' : `Available in ${mDiff} month${mDiff > 1 ? 's' : ''}`,
+                                        date: availDateForCompare,
+                                        priority: mDiff === 0 ? 2 : 3
+                                    });
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -504,11 +535,11 @@ const Dashboard = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-3 md:mb-4 flex flex-row items-center justify-between gap-2 shrink-0">
+            <header className="mb-3 md:mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#0f172a]">Dashboard</h1>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
 
                     {typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission !== 'granted' && (
                         <button 
@@ -546,7 +577,7 @@ const Dashboard = () => {
                 </div>
             </header>
 
-            <div className="flex-1 flex flex-col min-h-0 w-full overflow-x-hidden overflow-y-auto md:overflow-hidden pb-4">
+            <div ref={dashboardScrollRef} className="flex-1 flex flex-col min-h-0 w-full overflow-x-hidden overflow-y-auto md:overflow-hidden pb-4">
                 <div className={`shrink-0 transition-all duration-500 ease-in-out ${showReminders && reminders.length > 0 ? 'opacity-100 mb-3 max-h-[300px]' : 'max-h-0 opacity-0 mb-0 overflow-hidden'}`}>
                      <div className="w-full max-w-7xl animate-fade-in">
                           <div className="flex items-center justify-between mb-4 px-1">
@@ -600,7 +631,7 @@ const Dashboard = () => {
                                                }
                                           }} className={`min-w-[280px] max-w-[280px] flex-shrink-0 bg-white border border-gray-200 rounded-xl p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md group relative flex flex-col min-h-0 overflow-visible ${r.type === 'todo' ? 'cursor-default border-l-4 border-l-blue-400' : 'cursor-pointer'}`}>
                                               {/* Circular Icons on the border */}
-                                              <div className="absolute -top-2.5 -right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all transform group-hover:scale-100 scale-90 z-10 pointer-events-none group-hover:pointer-events-auto">
+                                              <div className="absolute -top-2.5 -right-2.5 flex gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all transform md:group-hover:scale-100 scale-100 md:scale-90 z-10 pointer-events-auto md:pointer-events-none md:group-hover:pointer-events-auto">
                                                    <button onClick={(e) => { e.stopPropagation(); snoozeReminder(r); }} title="Snooze 3 days" className="h-6 w-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 text-gray-400 hover:text-blue-500 transition-colors pointer-events-auto">
                                                         <Clock className="h-3 w-3" />
                                                    </button>

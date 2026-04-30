@@ -1,0 +1,49 @@
+# Gmail Integration & Automatic Correspondence Logging Plan
+
+## Goal
+Automatically intercept emails sent to and from known builders, log the email threads into the respective builder's correspondence tab, and use AI to generate simple summaries of the email contents and attachments (similar to the existing call recording transcriptions).
+
+## Architecture & Workflow
+
+### 1. Gmail API Integration (Webhook via Pub/Sub)
+- **Concept:** We need to know the moment an email arrives or is sent. We do this by setting up a Gmail Push Notification using Google Cloud Pub/Sub.
+- **Implementation:** 
+  - Create a Google Cloud Pub/Sub topic.
+  - Call the Gmail API `watch` endpoint on the target inbox to subscribe to new messages.
+  - Set up a Firebase Cloud Function HTTP endpoint that acts as a webhook subscriber to the Pub/Sub topic.
+  - *Authentication:* Since this is server-to-server reading your Gmail, we will likely need to set up OAuth2 credentials and authorize the backend to read your emails, storing the refresh token securely in Firebase.
+
+### 2. Message Retrieval and Filtering 
+- **Concept:** The Pub/Sub notification only tells us "an inbox changed". We need to fetch the actual email.
+- **Implementation:**
+  - The Cloud Function receives the notification.
+  - It uses the Gmail API (using the stored OAuth tokens) to fetch the specific email message details (from, to, body, attachments).
+  - **Filtering:** The function queries the Firestore `builders` collection to check if the sender (for incoming) or recipient (for replies) matches a known builder's email address.
+  - If there is no match, the function exits silently (we only care about builder correspondence).
+
+### 3. AI Processing & Summarization (Vertex AI)
+- **Concept:** We need to read the email and any attachments to provide a clear, concise summary.
+- **Implementation:**
+  - Parse the email body to plain text (removing HTML tags/clutter).
+  - For attachments (like PDFs or images), we may need to temporarily download them.
+  - Pass the email text (and attachment content if applicable) to Vertex AI (Gemini 1.5 Flash), utilizing the same pipeline logic we recently built for the call transcriptions.
+  - Prompt the AI to "Provide a brief summary of what went in and out in this email correspondence."
+
+### 4. Logging to Firestore Correspondence
+- **Concept:** Save the final processed data exactly how the frontend expects it for the Builder's correspondence list.
+- **Implementation:**
+  - Map the email data to the existing correspondence data structure (e.g., type: "email", date, builderId, content, summary, etc.).
+  - Distinguish between incoming ("Received from Builder") and outgoing ("Replied to Builder").
+  - Write the document to the relevant Firestore `correspondence` subcollection.
+
+### 5. Frontend Polish
+- **Concept:** Ensure it looks perfect on the frontend.
+- **Implementation:**
+  - The UI already listens to Firestore, so the logging should appear automatically without a refresh.
+  - Ensure the UI beautifully displays the AI-generated "notes/summary" box specifically tailored for email structures.
+
+## Step-by-Step Implementation Strategy
+- **Phase 1:** Set up OAuth and the capacity to manually pull the last 5 emails from a specific inbox via a test Cloud Function. Ensure we can extract text/sender.
+- **Phase 2:** Connect Vertex AI to summarize these 5 test emails.
+- **Phase 3:** Create the logic to match the email against Firestore Builders and save it to the correspondence collection.
+- **Phase 4:** Setup the Pub/Sub webhook to make the process completely automatic as emails arrive.

@@ -65,11 +65,18 @@ async function fetchDetailWithPage(tabPage, url) {
 }
 
 export async function runScraper(targetWeekOverride = null) {
-    const stats = { added: 0, skipped: 0, errors: 0 };
+    const stats = { added: 0, skipped: 0, errors: 0, addedRefs: [] };
     let browser = null;
+
+    const updateProgress = async (data) => {
+        try {
+            await db.collection('system').doc('sync_status').set({ ...data, timestamp: new Date() }, { merge: true });
+        } catch(e) {}
+    };
 
     try {
         console.log("Starting scraper...");
+        await updateProgress({ status: 'running', message: 'Starting scraper...', progress: 0 });
 
         const executablePath = await chromium.executablePath();
         console.log("Launching headless browser... Executable:", executablePath);
@@ -159,7 +166,8 @@ export async function runScraper(targetWeekOverride = null) {
         if (noRes) {
             console.log("No results found for this week. Finishing gracefully.");
             await browser.close();
-            return { success: true, data: { added: 0, skipped: 0, updated: 0, total: 0 } };
+            await updateProgress({ status: 'idle', message: 'No results found', progress: 100 });
+            return { success: true, data: { added: 0, skipped: 0, updated: 0, total: 0, addedRefs: [] } };
         }
 
         console.log('Scraping results page 1...');
@@ -182,7 +190,19 @@ export async function runScraper(targetWeekOverride = null) {
                 break;
             }
 
+            await updateProgress({ 
+                status: 'running', 
+                message: `Found ${resultsCount} items on page ${pageNum}...`, 
+                progress: 10 
+            });
+
             for (let i = 0; i < resultsCount; i++) {
+                await updateProgress({ 
+                    status: 'running', 
+                    message: `Checking item ${i+1} of ${resultsCount} (Page ${pageNum})...`, 
+                    progress: 10 + Math.round(((i) / resultsCount) * 80)
+                });
+
                 const appInfo = await mainPage.evaluate((index) => {
                     const el = document.querySelectorAll('#searchresults .searchresult')[index];
                     const a = el.querySelector('a');
@@ -431,6 +451,7 @@ export async function runScraper(targetWeekOverride = null) {
 
                     await docRef.set(projectData);
                     stats.added++;
+                    stats.addedRefs.push(reference || keyVal);
                 }
 
                 try {
@@ -477,6 +498,7 @@ export async function runScraper(targetWeekOverride = null) {
         }
 
         console.log(`Done. Added: ${stats.added}, Skipped: ${stats.skipped}, Errors: ${stats.errors}`);
+        await updateProgress({ status: 'idle', message: 'Sync complete', progress: 100, lastStats: stats });
 
         // Log to Firestore for dashboard reporting
         await db.collection('scraper_logs').add({

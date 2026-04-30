@@ -286,6 +286,22 @@ const InteractionSlideover = ({ item, onClose, onEdit, theme }) => {
     const activeItem = item || displayItem;
     if (!activeItem) return null;
 
+    const handleCopyTranscript = async () => {
+        if (!activeItem.transcription) return;
+        const newNotes = activeItem.notes 
+            ? `${activeItem.notes}\n\n[Transcript]\n${activeItem.transcription}`
+            : `[Transcript]\n${activeItem.transcription}`;
+        try {
+            await updateDoc(doc(db, 'correspondence', activeItem.id), {
+                notes: newNotes
+            });
+            setDisplayItem({ ...activeItem, notes: newNotes });
+        } catch (err) {
+            console.error("Failed to update notes:", err);
+            alert("Failed to copy transcript to notes.");
+        }
+    };
+
     const m = CAT_META[activeItem.category] || CAT_META.Other;
     const Icon = m.icon;
     const ts = getDt(activeItem.timestamp);
@@ -336,6 +352,32 @@ const InteractionSlideover = ({ item, onClose, onEdit, theme }) => {
                                 </div>
                             </div>
                             <audio src={activeItem.recordingUrl} controls className="w-full h-10 custom-audio" />
+                            
+                            {/* Transcription Block */}
+                            {activeItem.transcriptionStatus === 'processing' && (
+                                <div className="mt-4 flex items-center justify-center gap-2 p-3 bg-blue-100/50 rounded-xl border border-blue-200 border-dashed">
+                                    <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
+                                    <span className="text-xs font-bold text-blue-700">AI Transcribing Audio...</span>
+                                </div>
+                            )}
+                            {activeItem.transcriptionStatus === 'error' && (
+                                <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-100">
+                                    <span className="text-xs font-bold text-red-600">Transcription failed: {activeItem.transcriptionError || "Unknown error"}</span>
+                                </div>
+                            )}
+                            {activeItem.transcription && (
+                                <div className="mt-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-[9px] font-black text-blue-800 uppercase tracking-widest">AI Transcript</p>
+                                        <button onClick={handleCopyTranscript} className="text-[10px] font-bold text-blue-600 hover:text-white hover:bg-blue-600 px-2.5 py-1 rounded-md transition-all border border-blue-200 hover:border-transparent active:scale-95">
+                                            Copy to Notes
+                                        </button>
+                                    </div>
+                                    <div className="p-4 bg-white rounded-xl border border-blue-100 text-sm text-gray-700 leading-relaxed max-h-48 overflow-y-auto mini-scroll shadow-inner">
+                                        {activeItem.transcription}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                     
@@ -391,9 +433,12 @@ const DetailPanel = ({ contact, mode, theme, onClose }) => {
     const [fuDate, setFuDate]             = useState('');
     const [showLog, setShowLog]           = useState(false);
     const [editingItem, setEditingItem]   = useState(null);
-    const [activeItem, setActiveItem]     = useState(null);
+    const [activeId, setActiveId]         = useState(null);
     const [filterCat, setFilterCat]       = useState('All');
     const [confirmPending, setConfirmPending] = useState(null);
+
+    const activeItem = interactions.find(i => i.id === activeId);
+
 
     const isRecordingThisContact = isRecording && activeContact?.id === contact?.id;
 
@@ -438,17 +483,24 @@ const DetailPanel = ({ contact, mode, theme, onClose }) => {
 
     const handleLogSave = async ({ category, notes: n, subject, followUp, date, direction, staff }) => {
         let timestamp = new Date();
-        if (date) {
-            const [y, m, d] = date.split('-').map(Number);
-            timestamp = new Date(y, m - 1, d);
-        }
-        // If it's today, we might want to keep the current time, but for backdating it's fine to just use the date's start or current time if it's today.
-        // Let's adjust to current time if the date is today's date to keep sequence logical if logged same day.
         const now = new Date();
-        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-        if (date === today && !editingItem) {
-             // keep current time for today's entries
-             timestamp.setHours(new Date().getHours(), new Date().getMinutes());
+
+        if (editingItem && editingItem.timestamp) {
+            // Keep the original timestamp's exact time if the date is unchanged
+            const origDt = getDt(editingItem.timestamp);
+            const origDateStr = origDt.getFullYear() + '-' + String(origDt.getMonth() + 1).padStart(2, '0') + '-' + String(origDt.getDate()).padStart(2, '0');
+            
+            if (date === origDateStr) {
+                timestamp = origDt; // Preserve original time, so it doesn't move to bottom of day
+            } else {
+                const [y, m, d] = date.split('-').map(Number);
+                // User moved it to another day, keep time component but update day
+                timestamp = new Date(y, m - 1, d, origDt.getHours(), origDt.getMinutes(), origDt.getSeconds(), origDt.getMilliseconds());
+            }
+        } else if (date) {
+            const [y, m, d] = date.split('-').map(Number);
+            // New item: apply current real-world time to keep sequential logic even for backdated days
+            timestamp = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
         }
 
         const data = { category, notes: n, subject, followUp, timestamp, direction, staff };
@@ -467,6 +519,7 @@ const DetailPanel = ({ contact, mode, theme, onClose }) => {
     const handleDelete = async (e, item) => { e.stopPropagation(); setConfirmPending(item); };
     const confirmDelete = async () => { if (confirmPending) await deleteDoc(doc(db, 'correspondence', confirmPending.id)); setConfirmPending(null); };
     const handleEditClick = (e, item) => { e.stopPropagation(); setEditingItem(item); setShowLog(true); };
+
 
     const filtered = filterCat === 'All' ? interactions : interactions.filter(i => i.category === filterCat);
     const isOverdue = fuDate && new Date(fuDate) < new Date();
@@ -565,7 +618,8 @@ const DetailPanel = ({ contact, mode, theme, onClose }) => {
                                 const m = CAT_META[item.category] || CAT_META.Other;
                                 const Icon = m.icon;
                                 return (
-                                    <div key={item.id} onClick={() => setActiveItem(item)} className="group flex items-start gap-4 p-5 rounded-[1.5rem] hover:bg-gray-50 border border-transparent hover:border-gray-100 cursor-pointer transition-all active:scale-[0.99] bg-white hover:shadow-md">
+                                    <div key={item.id} onClick={() => setActiveId(item.id)} className="group flex items-start gap-4 p-5 rounded-[1.5rem] hover:bg-gray-50 border border-transparent hover:border-gray-100 cursor-pointer transition-all active:scale-[0.99] bg-white hover:shadow-md">
+
                                         <div className="h-12 w-12 rounded-2xl shrink-0 flex items-center justify-center shadow-sm" style={{ background: m.bg, color: m.fg }}>
                                             <Icon className="h-5 w-5" />
                                         </div>
@@ -611,7 +665,7 @@ const DetailPanel = ({ contact, mode, theme, onClose }) => {
             </div>
 
             <LogSlideover isOpen={showLog} onClose={() => { setShowLog(false); setEditingItem(null); }} onSave={handleLogSave} mode={mode} theme={theme} initialData={editingItem} />
-            <InteractionSlideover item={activeItem} onClose={() => setActiveItem(null)} onEdit={() => { setEditingItem(activeItem); setShowLog(true); setActiveItem(null); }} theme={theme} />
+            <InteractionSlideover item={activeItem} onClose={() => setActiveId(null)} onEdit={() => { setEditingItem(activeItem); setShowLog(true); setActiveId(null); }} theme={theme} />
             {confirmPending && <ConfirmModal message="Delete entry?" detail="This cannot be undone." onConfirm={confirmDelete} onCancel={() => setConfirmPending(null)} />}
         </div>
     );

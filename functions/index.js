@@ -5,6 +5,13 @@ import { runScraper } from "./scraper.js";
 import { finalizeContract } from "./contractHandler.js";
 import { processUpload } from "./uploadHandler.js";
 import { createProjectWorkspace } from "./workspaceHandler.js";
+import { handleTranscription } from "./transcribeHandler.js";
+import { 
+    getGmailAuthUrl, 
+    handleCallback, 
+    setupGmailWatch, 
+    handleGmailPush 
+} from "./gmailHandler.js";
 
 // --- NEW IMPORTS FOR THE OLD UPLOAD PIPELINE ---
 import Busboy from "busboy";
@@ -60,7 +67,8 @@ export const signContract = onRequest({
     region: "europe-west2",
     cors: true,
     timeoutSeconds: 120,
-    memory: "1GiB"
+    memory: "1GiB",
+    secrets: ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS"]
 }, async (req, res) => {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
     const { agreementId, signatureData } = req.body;
@@ -108,6 +116,116 @@ export const initializeWorkspace = onRequest({
         res.status(500).json({ error: error.message });
     }
 });
+
+export const transcribeAudio = onDocumentCreated({
+    document: "correspondence/{docId}",
+    region: "europe-west2",
+    timeoutSeconds: 300,
+    memory: "512MiB"
+}, async (event) => {
+    try {
+        await handleTranscription(event);
+    } catch (error) {
+        console.error("Transcribe process failed:", error);
+    }
+});
+
+export const transcribeAudioUpdated = onDocumentUpdated({
+    document: "correspondence/{docId}",
+    region: "europe-west2",
+    timeoutSeconds: 300,
+    memory: "512MiB"
+}, async (event) => {
+    try {
+        // Only run if the recordingUrl is present and transcription hasn't been completed yet
+        const after = event.data.after.data();
+        const before = event.data.before.data();
+        
+        // Trigger if summary was requested or if it's a new recordingUrl update
+        if (after.recordingUrl && after.transcriptionStatus !== 'completed' && after.transcriptionStatus !== 'processing') {
+             await handleTranscription(event);
+        }
+    } catch (error) {
+        console.error("Transcribe update process failed:", error);
+    }
+});
+
+export const backfillTranscriptions = onRequest({
+    region: "europe-west2",
+    timeoutSeconds: 300,
+}, async (req, res) => {
+    const db = admin.firestore();
+    const snap = await db.collection("correspondence").get();
+    let count = 0;
+    for (const d of snap.docs) {
+        const data = d.data();
+        if (data.recordingUrl && (!data.transcriptionStatus || data.transcriptionStatus === 'error')) {
+            await db.collection("correspondence").doc(d.id).update({
+                transcriptionStatus: 'pending_backfill'
+            });
+            count++;
+        }
+    }
+    res.send({
+        total: snap.docs.length,
+        triggered: count,
+        details: snap.docs.map(d => ({
+            id: d.id,
+            hasUrl: !!d.data().recordingUrl,
+            status: d.data().transcriptionStatus || 'none'
+        }))
+    });
+});
+
+// ==========================================
+// 1.5 GMAIL WEBHOOK & OAUTH ENDPOINTS
+// ==========================================
+
+export const gmailAuthUrl = onRequest({
+    region: "europe-west2",
+    cors: true,
+    timeoutSeconds: 30
+}, async (req, res) => {
+    try {
+        const url = await getGmailAuthUrl();
+        res.status(200).send({ url });
+    } catch (e) {
+        res.status(500).send({ error: e.message });
+    }
+});
+
+export const handleGmailCallback = onRequest({
+    region: "europe-west2",
+    cors: true,
+    timeoutSeconds: 30
+}, async (req, res) => {
+    await handleCallback(req, res);
+});
+
+export const startGmailWatch = onRequest({
+    region: "europe-west2",
+    cors: true,
+    timeoutSeconds: 30
+}, async (req, res) => {
+    try {
+        const { topicName } = req.body;
+        if (!topicName) return res.status(400).send({ error: "Missing topicName. Example: projects/YOUR_PROJECT/topics/your-topic" });
+        const result = await setupGmailWatch(topicName);
+        res.status(200).send(result);
+    } catch (e) {
+        res.status(500).send({ error: e.message });
+    }
+});
+
+export const gmailWebhook = onRequest({
+    region: "europe-west2",
+    cors: true,
+    timeoutSeconds: 300,
+    memory: "1GiB"
+}, async (req, res) => {
+    await handleGmailPush(req, res);
+});
+
 
 // ==========================================
 // 2. PROJECT PACK LEGACY UPLOAD PIPELINE
@@ -433,6 +551,21 @@ export const notifyOnInvoicePayment = onDocumentUpdated({
             data: { clickAction: `https://app.benchmarkintelligence.co.uk/#/invoices?id=${event.params.docId}` }
         });
     }
+});
+
+// 5. Notify on Contract Signed
+export const notifyOnContractSigned = onDocumentCreated({
+    document: "signedContracts/{docId}",
+    region: "europe-west2"
+}, async (event) => {
+    const data = event.data.data();
+    await sendToAllStaff({
+        notification: {
+            title: "✍️ Contract Signed",
+            body: `${data.builderName || 'A builder'} has signed their contract.`,
+        },
+        data: { clickAction: 'https://app.benchmarkintelligence.co.uk/#/contracts' }
+    });
 });
 
 export const testPushNotification = onRequest({

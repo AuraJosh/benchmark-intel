@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDocs, where, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, where, deleteDoc } from 'firebase/firestore';
 import { MapPin, Navigation, Map as MapIcon, Loader2, User, Users, ExternalLink, Calendar, CheckCircle2, ChevronRight, Save, Trash2, X, Activity, Eye, EyeOff, ClipboardList } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
@@ -29,7 +29,6 @@ const Routing = () => {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [routeToDelete, setRouteToDelete] = useState(null);
     const [hideCompleted, setHideCompleted] = useState(() => localStorage.getItem('benchmark_routing_hideCompleted') === 'true');
-    const [searchQuery, setSearchQuery] = useState(''); 
 
     const routesListRef = useScrollRestoration('routes-list', [loading]);
     const stopsListRef = useScrollRestoration(`stops-list-${selectedRoute?.id || 'none'}`, [!selectedRoute || routeProjects.length === 0]);
@@ -221,7 +220,7 @@ const Routing = () => {
             endAutocomplete.current = null;
             setMapReady(false);
         };
-    }, [selectedRoute?.id]);
+    }, [selectedRoute?.id, selectedRoute]);
 
     // Persist hideCompleted state
     useEffect(() => {
@@ -267,7 +266,6 @@ const Routing = () => {
         }
 
         const projectIds = selectedRoute.projectIds;
-        const orderedIds = selectedRoute.projectIds; // We use projectIds for order now
 
         // Firestore 'in' query limit is 30. Most routes are < 30.
         // For simplicity and performance, we'll listen to projects in chunks of 30 if needed,
@@ -292,18 +290,6 @@ const Routing = () => {
         return () => unsubscribe();
     }, [selectedRoute?.projectIds]);
 
-    const handleSaveDetails = async () => {
-        if (!selectedRoute) return;
-        try {
-            await updateDoc(doc(db, 'routes', selectedRoute.id), {
-                startAddress,
-                endAddress,
-                assignedTo
-            });
-        } catch (error) {
-            console.error("Error saving details:", error);
-        }
-    };
 
     const handleAssign = async (val) => {
         setAssignedTo(val);
@@ -312,10 +298,6 @@ const Routing = () => {
         }
     };
 
-    const handleAddressChange = (val, field) => {
-        if (field === 'start') setStartAddress(val);
-        else setEndAddress(val);
-    };
 
 
     const handleCalculateRoute = async () => {

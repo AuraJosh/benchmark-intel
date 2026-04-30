@@ -20,8 +20,6 @@ const StatusBadge = ({ status, className = "" }) => {
         return 'border-gray-200 bg-gray-50 text-gray-700';
       case 'pack created':
         return 'border-teal-200 bg-teal-50 text-teal-700';
-      case 'pack sent':
-        return 'border-indigo-200 bg-indigo-50 text-indigo-700';
       case 'pack required':
         return 'border-amber-200 bg-amber-50 text-amber-700';
       case 'revisit':
@@ -58,7 +56,6 @@ const StatusBadge = ({ status, className = "" }) => {
       case 'unavailable':
         return 'bg-gray-400';
       case 'pack created': return 'bg-teal-500';
-      case 'pack sent': return 'bg-indigo-500';
       case 'pack required': return 'bg-amber-500';
       case 'revisit': return 'bg-orange-500';
       case 'new':

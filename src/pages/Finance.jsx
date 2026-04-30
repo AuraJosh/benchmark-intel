@@ -17,6 +17,7 @@ import {
 } from 'recharts';
 import html2pdf from 'html2pdf.js';
 import { BadgeHelp } from 'lucide-react';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -182,6 +183,8 @@ const Finance = () => {
     const [form, setForm] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
+
+    const scrollContainerRef = useScrollRestoration('finance-main', [loading, activeTab]);
 
     // ── Document Generation ──
     const generateDocument = (item, type) => {
@@ -538,14 +541,14 @@ const Finance = () => {
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
             {/* ── Header ── */}
-            <header className="mb-3 md:mb-5 flex flex-row items-center justify-between gap-2 shrink-0">
+            <header className="mb-3 md:mb-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div>
                     <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a]">Finance</h1>
                     <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">
                         Smart tax tracking, dividends & high-efficiency payroll.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                     <button
                         onClick={exportHMRCData}
                         className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
@@ -585,8 +588,8 @@ const Finance = () => {
             </header>
 
             {/* ── Filters bar ── */}
-            <div className="flex flex-wrap items-center gap-2 mb-4 shrink-0">
-                <div className="relative flex-1 min-w-[160px] max-w-xs">
+            <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 mb-4 shrink-0 w-full">
+                <div className="relative flex-1 w-full sm:min-w-[160px] sm:max-w-xs">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <input
                         type="text"
@@ -596,8 +599,8 @@ const Finance = () => {
                         className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-[#0f172a] focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
                     />
                 </div>
-                <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-gray-400 ml-2" />
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    <Calendar className="h-4 w-4 text-gray-400 hidden sm:block ml-2" />
                     <select
                         value={filterTaxYear}
                         onChange={(e) => {
@@ -636,7 +639,7 @@ const Finance = () => {
             </div>
 
             {/* ── Tabs ── */}
-            <div className="flex gap-1 mb-4 shrink-0 border-b border-gray-200">
+            <div className="flex gap-1 mb-4 shrink-0 border-b border-gray-200 overflow-x-auto mini-scroll pb-1">
                 {[
                     { key: TABS.OVERVIEW, label: 'Overview' },
                     { key: TABS.REVENUE, label: `Revenue (${filteredRevenue.length})` },
@@ -659,7 +662,7 @@ const Finance = () => {
             </div>
 
             {/* ── Main content area ── */}
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+            <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
 
                 {/* ── OVERVIEW TAB ── */}
                 {activeTab === TABS.OVERVIEW && (
@@ -740,7 +743,7 @@ const Finance = () => {
                                 </h3>
                                 <div className="h-52">
                                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                        <BarChart data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                                        <BarChart key={stats.rev + stats.exp + stats.wg} data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
                                             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 11 }} tickFormatter={(v) => `£${(v/1000).toFixed(0)}k`} />
@@ -762,7 +765,7 @@ const Finance = () => {
                                 </h3>
                                 <div className="h-52">
                                     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                                        <LineChart data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                                        <LineChart key={stats.rev + stats.exp + stats.wg + stats.div} data={chartData} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                             <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} />
                                             <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 11 }} tickFormatter={(v) => `£${(v/1000).toFixed(0)}k`} />
@@ -1373,10 +1376,10 @@ const TransactionRow = ({ item, type, onView, onEdit, onDelete }) => {
                     {isRevenue ? '+' : '-'}{fmt(item.amount)}
                 </span>
                 <div className="hidden group-hover:flex items-center gap-1">
-                    <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
                         <Edit2 className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
                         <Trash2 className="h-3.5 w-3.5" />
                     </button>
                 </div>
@@ -1485,13 +1488,14 @@ const EntriesTable = ({ rows, type, emptyLabel, onAdd, onEdit, onDelete, onView,
                                                             rel="noreferrer"
                                                             title="View HMRC Evidence"
                                                             className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-md"
+                                                            onClick={(e) => e.stopPropagation()}
                                                         >
                                                             <Eye className="h-3.5 w-3.5" />
                                                         </a>
                                                     )}
                                                     {isDividend && (
                                                         <button 
-                                                            onClick={() => onGenerate(item, 'dividend')}
+                                                            onClick={(e) => { e.stopPropagation(); onGenerate(item, 'dividend'); }}
                                                             title="Generate Dividend Voucher"
                                                             className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
                                                         >
@@ -1500,17 +1504,17 @@ const EntriesTable = ({ rows, type, emptyLabel, onAdd, onEdit, onDelete, onView,
                                                     )}
                                                     {isWage && (
                                                         <button 
-                                                            onClick={() => onGenerate(item, 'wage')}
+                                                            onClick={(e) => { e.stopPropagation(); onGenerate(item, 'wage'); }}
                                                             title="Generate Payslip"
                                                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md"
                                                         >
                                                             <ReceiptText className="h-3.5 w-3.5" />
                                                         </button>
                                                     )}
-                                                    <button onClick={() => onEdit(item)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
+                                                    <button onClick={(e) => { e.stopPropagation(); onEdit(item); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
                                                         <Edit2 className="h-3.5 w-3.5" />
                                                     </button>
-                                                    <button onClick={() => onDelete(item)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                                                    <button onClick={(e) => { e.stopPropagation(); onDelete(item); }} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
                                                         <Trash2 className="h-3.5 w-3.5" />
                                                     </button>
                                                 </div>

@@ -207,8 +207,24 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
             type: 'danger',
             onConfirm: async () => {
                 try {
-                    const packRef = ref(storage, project.finishedProjectPack.fullPath);
-                    await deleteObject(packRef);
+                    // Robust path extraction as fallback
+                    const packPath = project.finishedProjectPack.fullPath || (project.finishedProjectPack.url?.includes('/o/') 
+                        ? decodeURIComponent(project.finishedProjectPack.url.split('/o/')[1].split('?')[0]) 
+                        : null);
+
+                    if (packPath) {
+                        try {
+                            const packRef = ref(storage, packPath);
+                            await deleteObject(packRef);
+                        } catch (storageErr) {
+                            // If file is already gone, just continue with DB cleanup
+                            if (storageErr.code !== 'storage/object-not-found') {
+                                throw storageErr;
+                            }
+                            console.warn("Storage file already gone, cleaning up record.");
+                        }
+                    }
+
                     await updateDoc(doc(db, 'projects', projectId), {
                         finishedProjectPack: null,
                         status: 'Pack Required'
@@ -217,31 +233,55 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
                     setConfirmation({ ...confirmation, isOpen: false });
                 } catch (error) {
                     console.error("Delete error:", error);
-                    alert("Failed to delete project pack.");
+                    alert("Failed to delete project pack: " + (error.message || "Unknown error"));
                 }
             }
         });
     };
 
     const handleDeleteFile = async (fileObj) => {
+        if (!fileObj) return;
+
         setConfirmation({
             isOpen: true,
             title: 'Delete File',
-            message: `Are you sure you want to delete ${fileObj.name}? This will permanently remove it from storage.`,
+            message: `Are you sure you want to delete ${fileObj.name || 'this file'}? This will permanently remove it from storage.`,
             confirmText: 'Remove File',
             type: 'danger',
             onConfirm: async () => {
                 try {
-                    const fileRef = ref(storage, fileObj.fullPath);
-                    await deleteObject(fileRef);
+                    // Try to get path from object or extract from URL
+                    const filePath = fileObj.fullPath || (fileObj.url?.includes('/o/') 
+                        ? decodeURIComponent(fileObj.url.split('/o/')[1].split('?')[0]) 
+                        : null);
+
+                    if (filePath) {
+                        try {
+                            const fileRef = ref(storage, filePath);
+                            await deleteObject(fileRef);
+                        } catch (storageErr) {
+                            // Ignore "Not Found" errors to allow cleanup of ghost records
+                            if (storageErr.code !== 'storage/object-not-found') {
+                                throw storageErr;
+                            }
+                            console.warn("Storage object not found, proceeding with Firestore removal.");
+                        }
+                    }
+
                     await updateDoc(doc(db, 'projects', projectId), {
                         projectFiles: arrayRemove(fileObj)
                     });
-                    setProjectFiles(prev => prev.filter(f => f.fullPath !== fileObj.fullPath));
+                    
+                    setProjectFiles(prev => prev.filter(f => {
+                        const matchPath = f.fullPath && f.fullPath === fileObj.fullPath;
+                        const matchUrl = f.url && f.url === fileObj.url;
+                        return !(matchPath || matchUrl);
+                    }));
+                    
                     setConfirmation({ ...confirmation, isOpen: false });
                 } catch (error) {
                     console.error("Delete error:", error);
-                    alert("Failed to delete file.");
+                    alert("Failed to delete file: " + (error.message || "Unknown error"));
                 }
             }
         });

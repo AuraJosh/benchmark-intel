@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, where } from 'firebase/firestore';
 import { Receipt, Plus, Search, X, Calculator, Calendar, User, Home, CheckCircle2, AlertCircle, Clock, ArrowRight, Save, History, Percent, MapPin, Building, ChevronRight, ExternalLink, Sparkles, Eye, EyeOff } from 'lucide-react';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
 const BOE_BASE_RATE_DEFAULT = 5.25; // Example BoE rate
 
@@ -38,7 +39,7 @@ const Invoices = () => {
     const [isRecordingPayment, setIsRecordingPayment] = useState(null); // 'p1', 'p2', or 'p3'
     const [paymentAmount, setPaymentAmount] = useState('');
     const [showCompletionBanner, setShowCompletionBanner] = useState(false);
-    const scrollContainerRef = useRef(null);
+    const scrollContainerRef = useScrollRestoration('invoices-list', [loading]);
 
     // Reset completion banner when switching invoices
     useEffect(() => {
@@ -298,7 +299,7 @@ const Invoices = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+            <header className="mb-3 md:mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div className="min-w-0">
                     <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Invoices</h1>
                     <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Automated 40/40/20 splits and late commission tracking.</p>
@@ -310,8 +311,8 @@ const Invoices = () => {
             </header>
 
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col min-h-0 flex-1">
-                <div className="flex items-center justify-between border-b border-gray-100 p-4 shrink-0">
-                    <div className="relative flex-1 max-w-md">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between border-b border-gray-100 p-4 shrink-0">
+                    <div className="relative flex-1 w-full max-w-md">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
@@ -324,14 +325,14 @@ const Invoices = () => {
                     
                     <button
                         onClick={() => setHidePaid(!hidePaid)}
-                        className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${hidePaid ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
+                        className={`flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all border ${hidePaid ? 'bg-amber-50 border-amber-200 text-amber-700 shadow-inner' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm'}`}
                     >
                         <EyeOff className={`h-4 w-4 ${hidePaid ? 'text-amber-500' : 'text-gray-400'}`} />
                         {hidePaid ? 'Hiding Paid' : 'Hide Paid Invoices'}
                     </button>
                 </div>
 
-                <div className="overflow-auto flex-1">
+                <div ref={scrollContainerRef} className="overflow-auto flex-1">
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>

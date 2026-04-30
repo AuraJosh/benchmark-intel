@@ -1,14 +1,16 @@
-import { Search, Loader2, Filter, FileText, ChevronLeft, ChevronRight, Package, File } from 'lucide-react';
+import { Search, Loader2, Filter, FileText, ChevronLeft, ChevronRight, Package, File, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { generateCustomProjectId } from '../utils/projectIds';
 import StatusBadge from '../components/StatusBadge';
 import PackWorkspace from './PackWorkspace';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
 const ProjectPacks = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const [loading, setLoading] = useState(true);
@@ -20,7 +22,7 @@ const ProjectPacks = () => {
     const searchQuery = searchParams.get('q') || '';
     const filterStatus = searchParams.get('filter') || 'Pack Required';
 
-    const STATUS_OPTIONS = ['Pack Required', 'Pack Created', 'Pack Sent'];
+    const STATUS_OPTIONS = ['Pack Required', 'Pack Created', 'Assigned'];
     
     const updateFilter = (status) => {
         const nextParams = new URLSearchParams(searchParams);
@@ -45,6 +47,8 @@ const ProjectPacks = () => {
     };
 
     const itemsPerPage = 20;
+
+    const scrollContainerRef = useScrollRestoration('project-packs-list', [loading, currentPage]);
 
     useEffect(() => {
         const q = query(collection(db, 'projects'), orderBy('timestamp', 'desc'));
@@ -137,7 +141,7 @@ const ProjectPacks = () => {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto mini-scroll">
+                <div ref={scrollContainerRef} className="flex-1 overflow-auto mini-scroll">
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>
@@ -145,13 +149,14 @@ const ProjectPacks = () => {
                                 <th className="px-6 py-4 font-medium">Finalised Pack</th>
                                 <th className="px-6 py-4 font-medium w-32">Status</th>
                                 <th className="px-6 py-4 font-medium w-32">Decided</th>
+                                <th className="w-12"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {loading ? (
-                                <tr><td colSpan="4" className="px-6 py-8 text-center text-sm text-gray-500"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />Loading project packs...</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />Loading project packs...</td></tr>
                             ) : filteredProjects.length === 0 ? (
-                                <tr><td colSpan="4" className="px-6 py-8 text-center text-sm text-gray-500">No project packs found matching your criteria.</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500">No project packs found matching your criteria.</td></tr>
                             ) : (
                                 paginatedProjects.map((project) => (
                                     <tr key={project.id} onClick={() => openWorkspace(project)} className="hover:bg-gray-50/50 cursor-pointer transition-colors group">
@@ -181,6 +186,19 @@ const ProjectPacks = () => {
                                             <StatusBadge status={project.status} />
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-gray-500">{project.dateDecided ? new Date(project.dateDecided).toLocaleDateString() : 'N/A'}</td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const currentFullUrl = location.pathname + location.search;
+                                                    navigate(`/projects?id=${project.id}&backTo=${encodeURIComponent(currentFullUrl)}`);
+                                                }}
+                                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="View Project Details"
+                                            >
+                                                <ExternalLink className="h-4 w-4" />
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             )}

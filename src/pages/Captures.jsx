@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, where, getDocs } from 'firebase/firestore';
 import { ClipboardList, Search, X, User, Mail, Phone, Calendar, MapPin, Filter, ExternalLink, ChevronRight, Loader2, ArrowRight } from 'lucide-react';
 import { openExternalLink } from '../utils/opener';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
 const Captures = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -15,6 +16,8 @@ const Captures = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCapture, setSelectedCapture] = useState(null);
+
+    const scrollContainerRef = useScrollRestoration('captures-list', [loading]);
 
     useEffect(() => {
         let q = query(collection(db, 'homeowners'), orderBy('timestamp', 'desc'));
@@ -83,12 +86,12 @@ const Captures = () => {
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+            <header className="mb-3 md:mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div className="min-w-0">
                     <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Capture Logs</h1>
                     <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">History of homeowner details captured via the public form.</p>
                 </div>
-                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 shrink-0 w-full md:w-auto">
                     <button 
                         onClick={() => openExternalLink(`${window.location.origin}${window.location.pathname}#/capture`)} 
                         title="Open Public Form" 
@@ -101,8 +104,8 @@ const Captures = () => {
             </header>
 
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col flex-1 min-h-0 relative z-0">
-                <div className="flex items-center gap-4 border-b border-gray-100 p-4 bg-white shrink-0">
-                    <div className="relative flex-1 max-w-md">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-b border-gray-100 p-4 bg-white shrink-0">
+                    <div className="relative flex-1 w-full max-w-md">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                         <input
                             type="text"
@@ -126,7 +129,7 @@ const Captures = () => {
                     )}
                 </div>
 
-                <div className="flex-1 overflow-auto mini-scroll">
+                <div ref={scrollContainerRef} className="flex-1 overflow-auto mini-scroll">
                     <table className="w-full text-left text-sm text-gray-600">
                         <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                             <tr>

@@ -28,8 +28,8 @@ jobs:
       - name: Build
         env:
           VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
-          VITE_GITHUB_OWNER: AuraJamie
-          VITE_GITHUB_REPO: benchmark-intelligence
+          VITE_GITHUB_OWNER: AuraJosh
+          VITE_GITHUB_REPO: benchmark-intel
         run: npm run build
 
       - name: Deploy to gh-pages branch

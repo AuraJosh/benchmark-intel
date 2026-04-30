@@ -129,24 +129,7 @@ const SignContract = () => {
             const result = await response.json();
             console.log("Contract finalized successfully:", result);
 
-            // Log this signature as an automated correspondence entry
-            try {
-                const logData = {
-                    category: 'Contract',
-                    subject: 'Contract Finalized',
-                    notes: `The ${agreement.type || 'Agreement'} has been signed and finalized by ${builder?.companyName || 'the builder'}. This interaction was automatically captured by the signature portal.`,
-                    timestamp: serverTimestamp(),
-                    direction: 'Inbound',
-                    staff: 'System',
-                    mode: agreement.projectId ? 'homeowner' : 'builder'
-                };
-                if (agreement.projectId) logData.projectId = agreement.projectId;
-                if (agreement.builderId) logData.builderId = agreement.builderId;
-                
-                await addDoc(collection(db, 'correspondence'), logData);
-            } catch (lErr) {
-                console.error("Failed to log correspondence auto-entry:", lErr);
-            }
+            // Correspondence logging is now handled securely by the backend Cloud Function.
 
             setSigned(true);
             setIsSubmitting(false);
@@ -198,7 +181,7 @@ const SignContract = () => {
                             <span className="text-sm font-semibold text-blue-800">Tamper-Sealed & Legally Binding</span>
                         </div>
                         <p className="text-xs text-blue-600 leading-relaxed">
-                            A finalized, timestamped PDF of this agreement has been automatically emailed to <strong>{builder?.email}</strong> for your permanent records.
+                            A finalized, timestamped PDF of this agreement has been automatically emailed to <strong>{builder?.email}</strong> from josh.witte.business@gmail.com for your permanent records.
                         </p>
                     </div>
                     <div className="flex justify-between items-center px-4 py-2 bg-gray-50 rounded-lg text-[10px] text-gray-500 font-mono">
@@ -219,7 +202,7 @@ const SignContract = () => {
             <div className="w-full max-w-4xl bg-white rounded-2xl shadow-lg border border-gray-200 p-6 md:p-8">
                 <header className="mb-6 border-b border-gray-200 pb-4">
                     <h1 className="text-2xl font-semibold text-gray-900">
-                        {version?.title || 'Agreement'}
+                        {version?.title || 'Benchmark Intelligence Agreement'}
                     </h1>
                     <p className="mt-2 text-sm text-gray-600">
                         Please review the agreement below and provide your digital signature to confirm your acceptance.

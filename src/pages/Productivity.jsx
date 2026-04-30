@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, onSnapshot, orderBy, updateDoc, doc, addDoc, deleteDoc, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 import { Plus, Check, Trash2, Calendar, Target, Clock, BarChart2, MoreHorizontal, Moon, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 
 const Productivity = () => {
@@ -9,6 +10,8 @@ const Productivity = () => {
     const [newTaskCategory, setNewTaskCategory] = useState('');
     const [loading, setLoading] = useState(true);
     
+    const prodScrollRef = useScrollRestoration('productivity-main', [loading]);
+
     // Date state
     const todayStr = new Date().toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -122,13 +125,13 @@ const Productivity = () => {
     const displayDate = new Date(selectedDate);
 
     return (
-        <div className="w-full relative flex flex-col h-full overflow-hidden bg-[#f8fafc] p-1 md:p-4 rounded-xl">
-            <header className="mb-4 flex flex-row items-center justify-between gap-2 shrink-0">
+        <div className="w-full relative flex flex-col h-full overflow-hidden">
+            <header className="mb-3 md:mb-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#0f172a]">Productivity</h1>
                     <p className="text-sm text-gray-500">Stay focused and get things done.</p>
                 </div>
-                <div className="flex bg-white items-center gap-3 px-3 py-1.5 rounded-xl shadow-sm border border-gray-100">
+                <div className="flex bg-white items-center gap-3 px-3 py-1.5 rounded-xl shadow-sm border border-gray-100 w-full md:w-auto overflow-x-auto">
                     <button 
                         onClick={() => changeDate(-1)}
                         className="p-1 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-colors"
@@ -152,8 +155,7 @@ const Productivity = () => {
                     )}
                 </div>
             </header>
-
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden pb-2">
+            <div ref={prodScrollRef} className="flex-1 flex flex-col min-h-0 w-full overflow-x-hidden overflow-y-auto md:overflow-hidden pb-4">
                 {/* Stats Row */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 shrink-0">
                     <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 relative overflow-hidden flex flex-col justify-center">
@@ -207,20 +209,20 @@ const Productivity = () => {
                 </div>
 
                 {/* Main Content Area */}
-                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
+                <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 w-full min-h-0">
                     
                     {/* Left Column - To Do List */}
-                    <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
+                    <div className="lg:col-span-2 flex flex-col gap-4 min-h-[400px] md:min-h-0">
                         {/* Add Task Input */}
-                        <div className="bg-white rounded-xl p-2 pl-4 shadow-sm border border-gray-100 flex items-center gap-3 shrink-0">
-                            <Plus className="h-5 w-5 text-gray-400" />
+                        <div className="bg-white rounded-xl p-2 pl-4 shadow-sm border border-gray-100 flex items-center gap-2 sm:gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+                            <Plus className="h-5 w-5 text-gray-400 shrink-0" />
                             <input 
                                 type="text" 
                                 value={newTaskText}
                                 onChange={(e) => setNewTaskText(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && addTask(e)}
                                 placeholder="Add a new task..." 
-                                className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-gray-700 py-2"
+                                className="flex-1 min-w-[120px] bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-gray-700 py-2"
                             />
                             
                             <input 
@@ -229,7 +231,7 @@ const Productivity = () => {
                                 onChange={(e) => setNewTaskCategory(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && addTask(e)}
                                 placeholder="Category..."
-                                className="w-32 text-xs bg-gray-50 border border-gray-200 rounded-lg text-gray-600 font-medium py-2 px-3 focus:outline-none focus:border-blue-300 focus:ring-0"
+                                className="w-24 sm:w-32 shrink-0 text-xs bg-gray-50 border border-gray-200 rounded-lg text-gray-600 font-medium py-2 px-2 sm:px-3 focus:outline-none focus:border-blue-300 focus:ring-0"
                             />
                             <datalist id="category-options">
                                 {pastCategories.map((c, i) => (
@@ -237,7 +239,7 @@ const Productivity = () => {
                                 ))}
                             </datalist>
 
-                            <button onClick={addTask} className="bg-[#0f172a] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors">
+                            <button onClick={addTask} className="bg-[#0f172a] text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 transition-colors shrink-0">
                                 Add
                             </button>
                         </div>
@@ -312,7 +314,7 @@ const Productivity = () => {
                     </div>
 
                     {/* Right Column - Completed Tasks */}
-                    <div className="flex flex-col gap-4 min-h-0">
+                    <div className="flex flex-col gap-4 min-h-[300px] md:min-h-0">
                         <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex flex-col flex-1 min-h-0">
                             <h3 className="font-bold text-gray-900 mb-3 shrink-0">Completed</h3>
                             <div className="flex-1 overflow-y-auto pr-2 mini-scroll flex flex-col gap-2">

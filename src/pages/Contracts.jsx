@@ -2,13 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { FileSignature, Plus, X, Search, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { FileSignature, Plus, X, Search, CheckCircle2, XCircle, AlertCircle, Archive } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import SignatureCanvas from 'react-signature-canvas';
 import { Copy, Download, Share2, Printer, MapPin, Building, Phone, Mail } from 'lucide-react';
 import { autofillContract, generateAccessKey } from '../utils/contractUtils';
 import html2pdf from 'html2pdf.js';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
 const Contracts = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -24,6 +25,7 @@ const Contracts = () => {
     // UI States
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState('Pending');
 
     // Modals & Panels
     const [showNewVersion, setShowNewVersion] = useState(false);
@@ -39,6 +41,9 @@ const Contracts = () => {
     const [selectedVersionForAgreement, setSelectedVersionForAgreement] = useState('');
 
     const sigPad = useRef({});
+
+    const agreementsScrollRef = useScrollRestoration('agreements-list', [loading, activeTab]);
+    const versionsScrollRef = useScrollRestoration('versions-list', [loading, activeTab]);
 
     // Fetch Data
     useEffect(() => {
@@ -112,6 +117,18 @@ const Contracts = () => {
         } catch (error) {
             console.error("Error saving version:", error);
             alert("Failed to save contract version.");
+        }
+    };
+
+    const handleArchiveAgreement = async (id) => {
+        if (!window.confirm('Are you sure you want to archive this contract?')) return;
+        try {
+            await updateDoc(doc(db, 'agreements', id), {
+                status: 'Archived'
+            });
+        } catch (error) {
+            console.error("Error archiving agreement:", error);
+            alert("Failed to archive agreement.");
         }
     };
 
@@ -367,17 +384,19 @@ const Contracts = () => {
         const search = searchQuery.toLowerCase();
         const bName = getBuilderName(a.builderId).toLowerCase();
         const vTitle = getVersionTitle(a.versionId).toLowerCase();
-        return bName.includes(search) || vTitle.includes(search) || a.status.toLowerCase().includes(search);
+        const matchesSearch = bName.includes(search) || vTitle.includes(search) || a.status.toLowerCase().includes(search);
+        const matchesStatus = statusFilter === 'All' ? true : a.status === statusFilter;
+        return matchesSearch && matchesStatus;
     });
 
     return (
         <div className="w-full relative flex flex-col h-full overflow-hidden">
-            <header className="mb-3 md:mb-6 flex flex-row items-center justify-between gap-2 md:gap-4 shrink-0">
+            <header className="mb-3 md:mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div className="min-w-0">
                     <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Contracts</h1>
                     <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Manage contract versions and builder signatures.</p>
                 </div>
-                <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 shrink-0 w-full md:w-auto">
                     <button onClick={() => setShowNewVersion(true)} title="New Version" className="flex items-center gap-1 rounded-lg bg-white border border-gray-300 px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50">
                         <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
                         <span className="hidden md:inline">New Version</span>
@@ -408,8 +427,23 @@ const Contracts = () => {
             {/* Main Content Area */}
             {activeTab === 'agreements' && (
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col min-h-0 flex-1">
-                    <div className="flex items-center gap-4 border-b border-gray-100 p-4 shrink-0">
-                        <div className="relative flex-1 max-w-md">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-b border-gray-100 p-4 shrink-0">
+                        <div className="flex bg-gray-100/80 p-1.5 rounded-lg shrink-0 overflow-x-auto w-full sm:w-auto">
+                            {['All', 'Pending', 'Signed', 'Archived'].map(status => (
+                                <button
+                                    key={status}
+                                    onClick={() => setStatusFilter(status)}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap ${
+                                        statusFilter === status
+                                            ? 'bg-white text-gray-900 shadow-sm ring-1 ring-black/5'
+                                            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                    }`}
+                                >
+                                    {status}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="relative flex-1 w-full max-w-md">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
@@ -420,7 +454,7 @@ const Contracts = () => {
                             />
                         </div>
                     </div>
-                    <div className="overflow-auto flex-1">
+                    <div ref={agreementsScrollRef} className="overflow-auto flex-1">
                         <table className="w-full text-left text-sm text-gray-600">
                             <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                                 <tr>
@@ -454,6 +488,10 @@ const Contracts = () => {
                                                     <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium border border-green-200 bg-green-50 text-green-700">
                                                         <CheckCircle2 className="h-3 w-3" /> Signed
                                                     </span>
+                                                ) : agreement.status === 'Archived' ? (
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium border border-gray-200 bg-gray-50 text-gray-600">
+                                                        <Archive className="h-3 w-3" /> Archived
+                                                    </span>
                                                 ) : (
                                                     <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium border border-orange-200 bg-orange-50 text-orange-700">
                                                         <AlertCircle className="h-3 w-3" /> Pending
@@ -463,6 +501,16 @@ const Contracts = () => {
                                             <td className="px-4 py-4 text-right flex justify-end gap-2">
                                                 {agreement.status === 'Pending' ? (
                                                     <>
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                handleArchiveAgreement(agreement.id);
+                                                            }} 
+                                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Archive Agreement"
+                                                        >
+                                                            <Archive className="h-3.5 w-3.5" />
+                                                        </button>
                                                         <button 
                                                             onClick={(e) => { 
                                                                 e.stopPropagation(); 
@@ -482,8 +530,18 @@ const Contracts = () => {
                                                             Sign
                                                         </button>
                                                     </>
-                                                ) : (
+                                                ) : agreement.status === 'Signed' ? (
                                                     <>
+                                                        <button 
+                                                            onClick={(e) => { 
+                                                                e.stopPropagation(); 
+                                                                handleArchiveAgreement(agreement.id);
+                                                            }} 
+                                                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Archive Agreement"
+                                                        >
+                                                            <Archive className="h-3.5 w-3.5" />
+                                                        </button>
                                                         <button 
                                                             onClick={(e) => { 
                                                                 e.stopPropagation(); 
@@ -501,6 +559,13 @@ const Contracts = () => {
                                                             View
                                                         </button>
                                                     </>
+                                                ) : (
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); openAgreement(agreement.id); }} 
+                                                        className="px-2 py-1 border border-gray-300 text-gray-700 rounded-lg text-[10px] sm:text-xs font-bold hover:bg-gray-50 transition-colors"
+                                                    >
+                                                        View
+                                                    </button>
                                                 )}
                                             </td>
                                         </tr>
@@ -514,7 +579,7 @@ const Contracts = () => {
 
             {activeTab === 'versions' && (
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col min-h-0 flex-1">
-                    <div className="overflow-auto flex-1">
+                    <div ref={versionsScrollRef} className="overflow-auto flex-1">
                         <table className="w-full text-left text-sm text-gray-600">
                             <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                                 <tr>
