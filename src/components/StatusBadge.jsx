@@ -18,6 +18,9 @@ const StatusBadge = ({ status, className = "" }) => {
       case 'dead':
       case 'inactive':
         return 'border-gray-200 bg-gray-50 text-gray-700';
+      case 'letter dropped':
+      case 'letter posted':
+        return 'border-pink-200 bg-pink-50 text-pink-700';
       case 'pack created':
         return 'border-teal-200 bg-teal-50 text-teal-700';
       case 'pack required':
@@ -55,6 +58,8 @@ const StatusBadge = ({ status, className = "" }) => {
       case 'inactive':
       case 'unavailable':
         return 'bg-gray-400';
+      case 'letter dropped':
+      case 'letter posted': return 'bg-pink-500';
       case 'pack created': return 'bg-teal-500';
       case 'pack required': return 'bg-amber-500';
       case 'revisit': return 'bg-orange-500';

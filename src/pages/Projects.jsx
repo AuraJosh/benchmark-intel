@@ -2,7 +2,7 @@ import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activi
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage } from '../firebase';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp, where, writeBatch, limit, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, setDoc, serverTimestamp, where, writeBatch, limit, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -113,7 +113,7 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
             <div>
                 <button 
                     onClick={() => onOpenProject()}
-                    className="font-bold text-[13px] text-[#0f172a] leading-tight mb-0.5 text-left hover:text-blue-600 transition-colors block w-full"
+                    className="font-bold text-[13px] text-[#142e4f] leading-tight mb-0.5 text-left hover:text-blue-600 transition-colors block w-full"
                 >
                     {project.address}
                 </button>
@@ -171,7 +171,7 @@ const MapPinPopup = ({ project, routesList, onOpenProject, onNavigate }) => {
                         <button 
                             onClick={handleAdd}
                             disabled={adding || (!popupRouteDate && !popupExistingRouteId)}
-                            className="flex-[2] py-1.5 bg-[#0f172a] text-white rounded text-[11px] font-bold disabled:opacity-30"
+                            className="flex-[2] py-1.5 bg-[#142e4f] text-white rounded text-[11px] font-bold disabled:opacity-30"
                         >
                             {adding ? 'Adding...' : 'Confirm'}
                         </button>
@@ -268,6 +268,9 @@ const Projects = () => {
 
     const [editNotes, setEditNotes] = useState('');
     const [editStatus, setEditStatus] = useState('');
+    const [editLetterVersion, setEditLetterVersion] = useState('');
+    const [letterOptions, setLetterOptions] = useState([]);
+    const [newLetterOptionInput, setNewLetterOptionInput] = useState('');
 
     // Related data for active project
     const [relatedInvoices, setRelatedInvoices] = useState([]);
@@ -296,7 +299,7 @@ const Projects = () => {
     const [newProjectCollection, setNewProjectCollection] = useState('');
 
     const [sortBy, setSortBy] = useState('dateDecidedDesc');
-    const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Quoted', 'Won', 'Paid', 'Revisit', 'Archive', 'Assigned'];
+    const STATUS_OPTIONS = ['New', 'Pack Required', 'Pack Created', 'Quoted', 'Won', 'Paid', 'Revisit', 'Assigned', 'Opted Out', 'Letter Dropped', 'Letter Posted'];
     const [filterStatus, setFilterStatus] = useState('All');
     const [filterCollection, setFilterCollection] = useState('All');
     const [filterWeek, setFilterWeek] = useState('All');
@@ -336,6 +339,12 @@ const Projects = () => {
         if (mapSelectedIds.length === 0 || (!mapRouteDate && !mapExistingRouteId)) return;
         setMapRouteAdding(true);
         try {
+            const batch = writeBatch(db);
+            mapSelectedIds.forEach(id => {
+                batch.update(doc(db, 'projects', id), { completed: false });
+            });
+            await batch.commit();
+
             if (mapExistingRouteId) {
                 await updateDoc(doc(db, 'routes', mapExistingRouteId), { projectIds: arrayUnion(...mapSelectedIds) });
                 navigate(`/routing?id=${mapExistingRouteId}`);
@@ -372,6 +381,17 @@ const Projects = () => {
     }, []);
 
     useEffect(() => {
+        const unsubscribe = onSnapshot(doc(db, 'system', 'letter_options'), (docSnap) => {
+            if (docSnap.exists()) {
+                setLetterOptions(docSnap.data().options || []);
+            } else {
+                setLetterOptions([]);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    useEffect(() => {
         const q = query(collection(db, 'projects'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const projectData = snapshot.docs.map(doc => ({
@@ -396,8 +416,12 @@ const Projects = () => {
         const statusParam = searchParams.get('status');
 
         if (statusParam) {
-            setFilterStatus(statusParam);
-            if (statusParam === 'Archive') setShowArchive(true);
+            if (statusParam === 'Archive') {
+                setShowArchive(true);
+                setFilterStatus('All');
+            } else {
+                setFilterStatus(statusParam);
+            }
         }
 
         if (id && projects.length > 0) {
@@ -407,6 +431,7 @@ const Projects = () => {
                 setSelectedProject(project);
                 setEditNotes(project.notes || '');
                 setEditStatus(project.status || 'New');
+                setEditLetterVersion(project.letterVersion || '');
                 fetchRelatedData(id);
             }
         } else {
@@ -558,8 +583,11 @@ const Projects = () => {
             p.applicationStatus?.toLowerCase().includes(searchTerms) ||
             p.homeownerEmail?.toLowerCase().includes(searchTerms);
 
+        const isProjArchived = p.isArchived === true || p.status === 'Archive';
+        const matchesArchiveState = showArchive ? isProjArchived : !isProjArchived;
+
         const matchesStatus = filterStatus === 'All'
-            ? (showArchive ? true : p.status !== 'Archive')
+            ? true
             : filterStatus === 'Assigned'
                 ? allAssignments.some(assign => assign.projectId === p.id)
                 : filterStatus === 'New + Revisit'
@@ -574,7 +602,7 @@ const Projects = () => {
             ? true
             : getWBDateString(p.dateDecided) === filterWeek;
 
-        return matchesSearch && matchesStatus && matchesCollection && matchesWeek;
+        return matchesSearch && matchesStatus && matchesCollection && matchesWeek && matchesArchiveState;
     });
 
     filteredProjects.sort((a, b) => {
@@ -593,18 +621,56 @@ const Projects = () => {
         ? filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
         : filteredProjects;
 
+    const toggleArchiveProject = async (id, isArchived, currentStatus) => {
+        try {
+            const currentlyArchived = isArchived === true || currentStatus === 'Archive';
+            const updates = { isArchived: !currentlyArchived };
+            if (currentlyArchived && currentStatus === 'Archive') {
+                updates.status = 'New'; 
+            }
+            await updateDoc(doc(db, 'projects', id), updates);
+        } catch (error) {
+            console.error("Error toggling archive status:", error);
+            alert("Failed to update archive status.");
+        }
+    };
+
     const saveProjectDetails = async () => {
         if (!selectedProject) return;
         try {
             const projectRef = doc(db, 'projects', selectedProject.id);
             await updateDoc(projectRef, {
                 notes: editNotes,
-                status: editStatus
+                status: editStatus,
+                letterVersion: editLetterVersion
             });
             closeProject();
         } catch (error) {
             console.error("Error updating project:", error);
             alert("Failed to save project details.");
+        }
+    };
+
+    const handleAddLetterOption = async (e) => {
+        e.preventDefault();
+        if (!newLetterOptionInput.trim()) return;
+        try {
+            await updateDoc(doc(db, 'system', 'letter_options'), {
+                options: arrayUnion(newLetterOptionInput.trim())
+            });
+            setEditLetterVersion(newLetterOptionInput.trim());
+            setNewLetterOptionInput('');
+        } catch (error) {
+            try {
+                await setDoc(doc(db, 'system', 'letter_options'), {
+                    options: [newLetterOptionInput.trim()]
+                });
+                setEditLetterVersion(newLetterOptionInput.trim());
+                setNewLetterOptionInput('');
+            } catch (err) {
+                console.error("Error adding letter option:", err);
+                alert("Failed to add letter option.");
+            }
         }
     };
 
@@ -706,6 +772,12 @@ const Projects = () => {
         }
 
         try {
+            const batch = writeBatch(db);
+            selectedRowIds.forEach(id => {
+                batch.update(doc(db, 'projects', id), { completed: false });
+            });
+            await batch.commit();
+
             if (existingRouteId) {
                 const routeRef = doc(db, 'routes', existingRouteId);
                 await updateDoc(routeRef, {
@@ -873,15 +945,15 @@ const Projects = () => {
         <div className="w-full relative flex flex-col h-full overflow-hidden">
             <header className="mb-3 md:mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div className="min-w-0">
-                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#0f172a] truncate">Projects</h1>
+                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-[#142e4f] truncate">Projects</h1>
                     <p className="mt-0.5 text-xs md:text-sm text-gray-500 hidden md:block">Track and manage planning application leads.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:gap-3 shrink-0 w-full md:w-auto">
                     <div className="flex rounded-lg border border-gray-200 p-0.5 md:p-1 bg-gray-50/50">
-                        <button onClick={() => navigate('/projects')} title="List View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                        <button onClick={() => navigate('/projects')} title="List View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-[#142e4f] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <List className="h-3.5 w-3.5" /> <span className="hidden md:inline">List</span>
                         </button>
-                        <button onClick={() => navigate('/map')} title="Map View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'map' ? 'bg-white text-[#0f172a] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                        <button onClick={() => navigate('/map')} title="Map View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'map' ? 'bg-white text-[#142e4f] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
                             <MapIcon className="h-3.5 w-3.5" /> <span className="hidden md:inline">Map</span>
                         </button>
                     </div>
@@ -895,10 +967,22 @@ const Projects = () => {
                         <Archive className={`h-3.5 w-3.5 md:h-4 md:w-4 ${showArchive ? 'text-amber-500' : 'text-gray-400'}`} />
                         <span className="hidden md:inline">{showArchive ? 'Showing Archive' : 'View Archive'}</span>
                     </button>
-                    <button onClick={() => setShowSyncModal(true)} disabled={syncing} title="Sync Data" className="flex items-center gap-1 rounded-lg bg-[#0f172a] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-all hover:bg-black disabled:opacity-50">
-                        {syncing ? <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" /> : <Activity className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-400" />}
-                        <span className="hidden md:inline">{syncing ? 'Scraping...' : 'Sync Data'}</span>
-                    </button>
+                    <div className="relative flex flex-col items-center">
+                        <button onClick={() => setShowSyncModal(true)} disabled={syncing} title="Sync Data" className="flex items-center gap-1 rounded-lg bg-[#142e4f] px-2 py-2 md:px-4 md:py-2.5 text-xs md:text-sm font-medium text-white shadow-sm transition-all hover:bg-black disabled:opacity-50">
+                            {syncing ? <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" /> : <Activity className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-400" />}
+                            <span className="hidden md:inline">{syncing ? 'Scraping...' : 'Sync Data'}</span>
+                        </button>
+                        {syncProgress?.timestamp && (
+                            <span className="absolute -bottom-4 right-0 md:right-auto md:left-1/2 md:-translate-x-1/2 text-[10px] text-gray-400 whitespace-nowrap pointer-events-none hidden md:block">
+                                Last sync: {syncProgress.timestamp?.toDate ? syncProgress.timestamp.toDate().toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : new Date(syncProgress.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                        )}
+                        {syncProgress?.timestamp && (
+                            <span className="absolute -bottom-4 right-0 text-[9px] text-gray-400 whitespace-nowrap pointer-events-none md:hidden">
+                                {syncProgress.timestamp?.toDate ? syncProgress.timestamp.toDate().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(syncProgress.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </header>
 
@@ -945,30 +1029,30 @@ const Projects = () => {
                             placeholder="Search by address, description, name..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-[#0f172a] focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
+                            className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-[#142e4f] focus:outline-none focus:ring-1 focus:ring-[#142e4f]"
                         />
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white flex-1 sm:flex-none min-w-[140px]">
+                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#142e4f] focus:outline-none bg-white flex-1 sm:flex-none min-w-[140px]">
                             <option value="All">All Statuses</option>
                             <option value="New + Revisit">New + Revisit</option>
                             {STATUS_OPTIONS.map(status => (
                                 <option key={status} value={status}>{status}</option>
                             ))}
                         </select>
-                        <select value={filterCollection} onChange={(e) => setFilterCollection(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white max-w-[160px] truncate flex-1 sm:flex-none min-w-[140px]">
+                        <select value={filterCollection} onChange={(e) => setFilterCollection(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#142e4f] focus:outline-none bg-white max-w-[160px] truncate flex-1 sm:flex-none min-w-[140px]">
                             <option value="All">All Collections</option>
                             {availableCollections.map(col => (
                                 <option key={col} value={col}>{col}</option>
                             ))}
                         </select>
-                        <select value={filterWeek} onChange={(e) => setFilterWeek(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white max-w-[160px] truncate flex-1 sm:flex-none min-w-[140px]">
+                        <select value={filterWeek} onChange={(e) => setFilterWeek(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#142e4f] focus:outline-none bg-white max-w-[160px] truncate flex-1 sm:flex-none min-w-[140px]">
                             <option value="All">All Weeks</option>
                             {availableWeeks.map(date => (
                                 <option key={date} value={date}>{date}</option>
                             ))}
                         </select>
-                        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white flex-1 sm:flex-none min-w-[140px]">
+                        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#142e4f] focus:outline-none bg-white flex-1 sm:flex-none min-w-[140px]">
                             <option value="dateDecidedDesc">Decided (Newest)</option>
                             <option value="dateDecidedAsc">Decided (Oldest)</option>
                             <option value="status">Status</option>
@@ -1042,7 +1126,7 @@ const Projects = () => {
                             <table className="w-full text-left text-sm text-gray-600">
                                 <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
                                     <tr>
-                                        <th className="px-4 py-4 w-10 text-center"><input type="checkbox" onChange={(e) => e.target.checked ? setSelectedRowIds(filteredProjects.map(p => p.id)) : setSelectedRowIds([])} checked={selectedRowIds.length === filteredProjects.length && filteredProjects.length > 0} className="rounded border-gray-300 text-[#0f172a] focus:ring-[#0f172a]" /></th>
+                                        <th className="px-4 py-4 w-10 text-center"><input type="checkbox" onChange={(e) => e.target.checked ? setSelectedRowIds(filteredProjects.map(p => p.id)) : setSelectedRowIds([])} checked={selectedRowIds.length === filteredProjects.length && filteredProjects.length > 0} className="rounded border-gray-300 text-[#142e4f] focus:ring-[#142e4f]" /></th>
                                         <th className="px-4 py-4 font-medium">Address</th>
                                         <th className="px-4 py-4 font-medium hidden md:table-cell">Description</th>
                                         <th className="px-4 py-4 font-medium w-32">Status</th>
@@ -1058,9 +1142,9 @@ const Projects = () => {
                                         paginatedProjects.map((project) => (
                                             <tr key={project.id} onClick={() => openProject(project)} className={`hover:bg-gray-50/50 cursor-pointer transition-colors ${selectedRowIds.includes(project.id) ? 'bg-blue-50/30' : ''}`}>
                                                 <td className="px-4 py-4 text-center" onClick={(e) => { e.stopPropagation(); toggleRowSelect(e, project.id); }}>
-                                                    <input type="checkbox" className="rounded border-gray-300 text-[#0f172a] focus:ring-[#0f172a]" checked={selectedRowIds.includes(project.id)} onChange={e => { }} />
+                                                    <input type="checkbox" className="rounded border-gray-300 text-[#142e4f] focus:ring-[#142e4f]" checked={selectedRowIds.includes(project.id)} onChange={e => { }} />
                                                 </td>
-                                                <td className="px-4 py-4 font-medium text-[#0f172a]">
+                                                <td className="px-4 py-4 font-medium text-[#142e4f]">
                                                     {project.address}
                                                     <div className="flex flex-wrap gap-1 mt-1.5">
                                                         {project.collections && project.collections.map((col, i) => (
@@ -1117,7 +1201,7 @@ const Projects = () => {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <div className="h-6 w-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs font-bold">{mapSelectedIds.length}</div>
-                                        <p className="text-sm font-bold text-[#0f172a]">Stop{mapSelectedIds.length !== 1 ? 's' : ''} Selected</p>
+                                        <p className="text-sm font-bold text-[#142e4f]">Stop{mapSelectedIds.length !== 1 ? 's' : ''} Selected</p>
                                     </div>
                                     <button onClick={() => setMapSelectedIds([])} className="text-xs text-gray-400 hover:text-gray-600 font-medium">Clear All</button>
                                 </div>
@@ -1159,7 +1243,7 @@ const Projects = () => {
                     <>
                         <div className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
                             <div>
-                                <h3 className="text-lg sm:text-xl font-bold text-[#0f172a]">Project Details</h3>
+                                <h3 className="text-lg sm:text-xl font-bold text-[#142e4f]">Project Details</h3>
                                 <p className="text-xs sm:text-sm text-gray-500 mt-0.5 font-medium">{activeProject.id}</p>
                             </div>
                             <button onClick={closeProject} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
@@ -1183,8 +1267,16 @@ const Projects = () => {
                                     {/* Action Bar - Now non-absolute to prevent overlapping */}
                                     <div className="flex flex-wrap items-center justify-end gap-2 mb-6 border-b border-gray-200 pb-4">
                                         <button
+                                            onClick={() => toggleArchiveProject(activeProject.id, activeProject.isArchived, activeProject.status)}
+                                            title={(activeProject.isArchived || activeProject.status === 'Archive') ? "Unarchive Project" : "Archive Project"}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg shadow-sm transition-colors border ${(activeProject.isArchived || activeProject.status === 'Archive') ? 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-amber-600'}`}
+                                        >
+                                            <Archive className="h-4 w-4" />
+                                            {(activeProject.isArchived || activeProject.status === 'Archive') ? 'Unarchive' : 'Archive'}
+                                        </button>
+                                        <button
                                             onClick={() => setViewMode('map')}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#142e4f] hover:bg-gray-50 shadow-sm transition-colors"
                                         >
                                             <MapIcon className="h-3.5 w-3.5 text-blue-500" /> View on Map
                                         </button>
@@ -1195,16 +1287,16 @@ const Projects = () => {
                                                     : '/correspondence';
                                                 navigate(path);
                                             }}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#142e4f] hover:bg-gray-50 shadow-sm transition-colors"
                                         >
                                             <MessageSquare className="h-3.5 w-3.5 text-blue-500" /> Correspondence
                                         </button>
-                                        <a href={activeProject.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors">
+                                        <a href={activeProject.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-gray-200 rounded-lg text-[#142e4f] hover:bg-gray-50 shadow-sm transition-colors">
                                             Portal <ExternalLink className="h-3.5 w-3.5 text-gray-400" />
                                         </a>
                                         <button 
                                             onClick={() => openWorkspace(activeProject.id)}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#0f172a] border border-transparent rounded-lg text-white hover:bg-black shadow-sm transition-colors"
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-[#142e4f] border border-transparent rounded-lg text-white hover:bg-black shadow-sm transition-colors"
                                         >
                                             Open Workspace <ChevronRight className="h-3.5 w-3.5 text-white/70" />
                                         </button>
@@ -1379,7 +1471,7 @@ const Projects = () => {
 
                                 {/* Linked Entities Header */}
                                 <div className="pt-6 border-t border-gray-100">
-                                    <h3 className="text-lg font-extrabold text-[#0f172a] flex items-center gap-2 mb-6">
+                                    <h3 className="text-lg font-extrabold text-[#142e4f] flex items-center gap-2 mb-6">
                                         <Network className="h-5 w-5 text-blue-500" /> 
                                         Linked Entities & History
                                     </h3>
@@ -1478,14 +1570,43 @@ const Projects = () => {
                                         <select
                                             value={editStatus}
                                             onChange={(e) => setEditStatus(e.target.value)}
-                                            className="block w-full rounded-md border-gray-300 py-2.5 pl-3 pr-10 text-sm focus:border-[#0f172a] focus:ring-[#0f172a] border"
+                                            className="block w-full rounded-md border-gray-300 py-2.5 pl-3 pr-10 text-sm focus:border-[#142e4f] focus:ring-[#142e4f] border"
                                         >
                                             {STATUS_OPTIONS.map(status => (
                                                 <option key={status} value={status}>{status}</option>
                                             ))}
                                         </select>
+                                        {(editStatus === 'Letter Dropped' || editStatus === 'Letter Posted') && (
+                                            <div className="mt-4 p-4 bg-pink-50 border border-pink-100 rounded-lg animate-in fade-in slide-in-from-top-2">
+                                                <label className="block text-sm font-medium text-pink-900 mb-2">
+                                                    {editStatus === 'Letter Posted' ? 'Letter Version Posted' : 'Letter Version Dropped'}
+                                                </label>
+                                                <select
+                                                    value={editLetterVersion}
+                                                    onChange={(e) => setEditLetterVersion(e.target.value)}
+                                                    className="block w-full rounded-md border-pink-200 py-2 pl-3 pr-10 text-sm focus:border-pink-500 focus:ring-pink-500 border bg-white"
+                                                >
+                                                    <option value="" disabled>Select a version...</option>
+                                                    {letterOptions.map(opt => (
+                                                        <option key={opt} value={opt}>{opt}</option>
+                                                    ))}
+                                                </select>
+                                                <form onSubmit={handleAddLetterOption} className="mt-3 flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={newLetterOptionInput}
+                                                        onChange={(e) => setNewLetterOptionInput(e.target.value)}
+                                                        placeholder="Add new letter version..."
+                                                        className="block w-full rounded-md border-pink-200 text-sm focus:border-pink-500 focus:ring-pink-500 border px-3 py-1.5 bg-white"
+                                                    />
+                                                    <button type="submit" disabled={!newLetterOptionInput.trim()} className="bg-pink-600 px-3 py-1.5 rounded-md text-xs font-semibold text-white hover:bg-pink-700 disabled:opacity-50 whitespace-nowrap shadow-sm">
+                                                        Add
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-2">Internal Notes</label><textarea rows={4} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0f172a] focus:ring-[#0f172a] text-sm p-3 border" placeholder="Add notes..." /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 mb-2">Internal Notes</label><textarea rows={4} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#142e4f] focus:ring-[#142e4f] text-sm p-3 border" placeholder="Add notes..." /></div>
                                 </div>
 
                                 <div className="bg-blue-50/30 p-6 rounded-xl border border-blue-100">
@@ -1546,7 +1667,7 @@ const Projects = () => {
                                             <select
                                                 value={selectedBuilderToAssign}
                                                 onChange={(e) => setSelectedBuilderToAssign(e.target.value)}
-                                                className="block w-full rounded-md border-gray-300 text-sm focus:border-[#0f172a] focus:ring-[#0f172a] border"
+                                                className="block w-full rounded-md border-gray-300 text-sm focus:border-[#142e4f] focus:ring-[#142e4f] border"
                                             >
                                                 <option value="" disabled>Select builder to add...</option>
                                                 {builders.map(b => (
@@ -1558,7 +1679,7 @@ const Projects = () => {
                                             <button
                                                 onClick={assignLead}
                                                 disabled={!selectedBuilderToAssign}
-                                                className="bg-[#0f172a] px-6 py-2 rounded-md text-sm font-semibold text-white hover:bg-black disabled:opacity-50 whitespace-nowrap"
+                                                className="bg-[#142e4f] px-6 py-2 rounded-md text-sm font-semibold text-white hover:bg-black disabled:opacity-50 whitespace-nowrap"
                                             >
                                                 Add to Project
                                             </button>
@@ -1604,7 +1725,7 @@ const Projects = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex shrink-0 justify-end px-6 py-4 bg-gray-50 border-t border-gray-200 gap-3"><button onClick={closeProject} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 border border-gray-300 hover:bg-gray-50">Cancel</button><button onClick={saveProjectDetails} className="rounded-md bg-[#0f172a] px-4 py-2 text-sm font-semibold text-white hover:bg-black flex items-center gap-2"><Save className="h-4 w-4" />Save Changes</button></div>
+                        <div className="flex shrink-0 justify-end px-6 py-4 bg-gray-50 border-t border-gray-200 gap-3"><button onClick={closeProject} className="rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 border border-gray-300 hover:bg-gray-50">Cancel</button><button onClick={saveProjectDetails} className="rounded-md bg-[#142e4f] px-4 py-2 text-sm font-semibold text-white hover:bg-black flex items-center gap-2"><Save className="h-4 w-4" />Save Changes</button></div>
                     </>
                 )}
             </div>
@@ -1614,8 +1735,8 @@ const Projects = () => {
                     <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setShowSyncModal(false)}></div>
                     <div className="bg-white rounded-xl shadow-2xl relative w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center"><h3 className="text-lg font-bold">Select Sync Week</h3><button onClick={() => setShowSyncModal(false)}><X className="h-5 w-5" /></button></div>
-                        <div className="p-6"><select value={selectedSyncDate} onChange={(e) => setSelectedSyncDate(e.target.value)} className="w-full border rounded-lg p-3 text-sm focus:border-[#0f172a] focus:ring-[#0f172a] outline-none" size="8"><option value="current">Current Week</option>{syncDates.map(date => <option key={date} value={date}>{date}</option>)}</select></div>
-                        <div className="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-3"><button onClick={() => setShowSyncModal(false)} className="px-4 py-2 text-sm font-semibold border rounded-lg">Cancel</button><button onClick={triggerSync} className="bg-[#0f172a] text-white px-6 py-2 rounded-lg text-sm font-bold">Start Scraper</button></div>
+                        <div className="p-6"><select value={selectedSyncDate} onChange={(e) => setSelectedSyncDate(e.target.value)} className="w-full border rounded-lg p-3 text-sm focus:border-[#142e4f] focus:ring-[#142e4f] outline-none" size="8"><option value="current">Current Week</option>{syncDates.map(date => <option key={date} value={date}>{date}</option>)}</select></div>
+                        <div className="bg-gray-50 p-4 border-t border-gray-200 flex justify-end gap-3"><button onClick={() => setShowSyncModal(false)} className="px-4 py-2 text-sm font-semibold border rounded-lg">Cancel</button><button onClick={triggerSync} className="bg-[#142e4f] text-white px-6 py-2 rounded-lg text-sm font-bold">Start Scraper</button></div>
                     </div>
                 </div>
             )}
