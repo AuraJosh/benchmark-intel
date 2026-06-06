@@ -592,7 +592,9 @@ const Projects = () => {
                 ? allAssignments.some(assign => assign.projectId === p.id)
                 : filterStatus === 'New + Revisit'
                     ? (p.status === 'New' || p.status === 'Revisit')
-                    : p.status === filterStatus;
+                    : filterStatus === 'Letters'
+                        ? (p.status === 'Letter Dropped' || p.status === 'Letter Posted')
+                        : p.status === filterStatus;
 
         const matchesCollection = filterCollection === 'All'
             ? true
@@ -1036,6 +1038,7 @@ const Projects = () => {
                         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#142e4f] focus:outline-none bg-white flex-1 sm:flex-none min-w-[140px]">
                             <option value="All">All Statuses</option>
                             <option value="New + Revisit">New + Revisit</option>
+                            <option value="Letters">Letters</option>
                             {STATUS_OPTIONS.map(status => (
                                 <option key={status} value={status}>{status}</option>
                             ))}
