@@ -51,16 +51,40 @@ const ProjectPacks = () => {
     const scrollContainerRef = useScrollRestoration('project-packs-list', [loading, currentPage]);
 
     useEffect(() => {
-        const q = query(collection(db, 'projects'), orderBy('timestamp', 'desc'));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const projectData = snapshot.docs.map(doc => ({
-                ...doc.data(),
-                id: doc.id
-            }));
-            setProjects(projectData);
-            setLoading(false);
+        let projectsData = [];
+        let preApprovedData = [];
+        let pLoading = true;
+        let paLoading = true;
+
+        const updateProjects = () => {
+            if (!pLoading && !paLoading) {
+                const combined = [...projectsData, ...preApprovedData];
+                combined.sort((a, b) => {
+                    const tA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
+                    const tB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
+                    return tB - tA;
+                });
+                setProjects(combined);
+                setLoading(false);
+            }
+        };
+
+        const unsub1 = onSnapshot(query(collection(db, 'projects'), orderBy('timestamp', 'desc')), (snapshot) => {
+            projectsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, projectType: 'normal' }));
+            pLoading = false;
+            updateProjects();
         });
-        return () => unsubscribe();
+
+        const unsub2 = onSnapshot(query(collection(db, 'pre_approved_projects'), orderBy('timestamp', 'desc')), (snapshot) => {
+            preApprovedData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id, projectType: 'preapproved' }));
+            paLoading = false;
+            updateProjects();
+        });
+
+        return () => {
+            unsub1();
+            unsub2();
+        };
     }, []);
 
     useEffect(() => {
@@ -93,10 +117,8 @@ const ProjectPacks = () => {
         }
     }, [workspaceId]);
 
-    const openWorkspace = (p) => {
-        const nextParams = new URLSearchParams(searchParams);
-        nextParams.set('id', p.id);
-        setSearchParams(nextParams);
+    const openWorkspace = (project) => {
+        setSearchParams({ id: project.id, type: project.projectType || 'normal', view: 'workspace' });
     };
 
     const closeWorkspace = () => {
@@ -114,25 +136,25 @@ const ProjectPacks = () => {
         <div className="w-full relative flex flex-col h-full overflow-hidden">
             <header className="mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div>
-                    <h1 className="text-3xl font-semibold tracking-tight text-[#0f172a]">Project Packs</h1>
-                    <p className="mt-1.5 text-sm text-gray-500">Manage required and created project packs.</p>
+                    <h1 className="text-3xl font-semibold tracking-tight text-blue-ex-dark">Project Packs</h1>
+                    <p className="mt-1.5 text-sm text-grey-mid">Manage required and created project packs.</p>
                 </div>
             </header>
 
-            <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col flex-1 min-h-0 relative z-0">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-b border-gray-100 p-4 bg-white shrink-0">
+            <div className="rounded-xl border border-grey-ex-light bg-white shadow-sm overflow-hidden flex flex-col flex-1 min-h-0 relative z-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 border-b border-grey-ex-light p-4 bg-white shrink-0">
                     <div className="relative flex-1 w-full max-w-sm">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-light" />
                         <input
                             type="text"
                             placeholder="Search by address, description..."
                             value={searchQuery}
                             onChange={(e) => updateSearch(e.target.value)}
-                            className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm focus:border-[#0f172a] focus:outline-none focus:ring-1 focus:ring-[#0f172a]"
+                            className="w-full rounded-lg border border-grey-light py-2.5 pl-10 pr-4 text-sm focus:border-blue-ex-dark focus:outline-none focus:ring-1 focus:ring-blue-ex-dark"
                         />
                     </div>
                     <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <select value={filterStatus} onChange={(e) => updateFilter(e.target.value)} className="rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-[#0f172a] focus:outline-none bg-white font-medium">
+                        <select value={filterStatus} onChange={(e) => updateFilter(e.target.value)} className="rounded-lg border border-grey-light py-2.5 px-3 text-sm focus:border-blue-ex-dark focus:outline-none bg-white font-medium">
                             <option value="All">All Pack Statuses</option>
                             {STATUS_OPTIONS.map(status => (
                                 <option key={status} value={status}>{status}</option>
@@ -142,8 +164,8 @@ const ProjectPacks = () => {
                 </div>
 
                 <div ref={scrollContainerRef} className="flex-1 overflow-auto mini-scroll">
-                    <table className="w-full text-left text-sm text-gray-600">
-                        <thead className="bg-gray-50 text-xs uppercase text-gray-500 sticky top-0 z-10 shadow-sm border-b border-gray-200">
+                    <table className="w-full text-left text-sm text-grey-mid">
+                        <thead className="bg-grey-accent text-xs uppercase text-grey-dark sticky top-0 z-10 shadow-sm border-b border-grey-ex-light">
                             <tr>
                                 <th className="px-6 py-4 font-medium">Address</th>
                                 <th className="px-6 py-4 font-medium">Finalised Pack</th>
@@ -154,29 +176,36 @@ const ProjectPacks = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100 bg-white">
                             {loading ? (
-                                <tr><td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-gray-400" />Loading project packs...</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-8 text-center text-sm text-grey-mid"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-grey-light" />Loading project packs...</td></tr>
                             ) : filteredProjects.length === 0 ? (
-                                <tr><td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500">No project packs found matching your criteria.</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-8 text-center text-sm text-grey-mid">No project packs found matching your criteria.</td></tr>
                             ) : (
                                 paginatedProjects.map((project) => (
-                                    <tr key={project.id} onClick={() => openWorkspace(project)} className="hover:bg-gray-50/50 cursor-pointer transition-colors group">
-                                        <td className="px-6 py-4 font-medium text-[#0f172a]">
-                                            <div className="group-hover:text-blue-700 transition-colors">{project.address}</div>
+                                    <tr key={project.id} onClick={() => openWorkspace(project)} className="hover:bg-grey-ex-light/50 cursor-pointer transition-colors group">
+                                        <td className="px-6 py-4 font-medium text-blue-ex-dark">
+                                            <div className="group-hover:text-blue-dark transition-colors">{project.address}</div>
                                             <div className="flex flex-col gap-1.5 mt-2">
-                                                <div className="text-[10px] text-gray-800 font-bold flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-300 shadow-sm w-fit" title="Project Pack ID">
-                                                    <FileText className="h-2.5 w-2.5" /> 
-                                                    {project.customId || generateCustomProjectId(project.address, project.reference, project.coordinates)}
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="text-[10px] text-grey-dark font-bold flex items-center gap-1 bg-grey-accent px-1.5 py-0.5 rounded border border-grey-light shadow-sm w-fit" title="Project Pack ID">
+                                                        <FileText className="h-2.5 w-2.5" /> 
+                                                        {project.customId || generateCustomProjectId(project.address, project.reference, project.coordinates)}
+                                                    </div>
+                                                    {project.projectType === 'preapproved' && (
+                                                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded" style={{ color: '#142E4F', backgroundColor: '#142E4F15' }}>
+                                                            Pre-Approved
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
                                             {project.finishedProjectPack ? (
-                                                <a href={project.finishedProjectPack.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-emerald-700 font-bold flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 transition-colors px-2.5 py-1.5 rounded-lg border border-emerald-200 shadow-sm w-fit truncate max-w-[250px]" title="Finalised Project Pack">
+                                                <a href={project.finishedProjectPack.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs text-green-dark font-bold flex items-center gap-1.5 bg-green-ex-light hover:bg-green-ex-light transition-colors px-2.5 py-1.5 rounded-lg border border-green-ex-light shadow-sm w-fit truncate max-w-[250px]" title="Finalised Project Pack">
                                                     <Package className="h-3.5 w-3.5 shrink-0" />
                                                     <span className="truncate">{project.finishedProjectPack.name}</span>
                                                 </a>
                                             ) : (
-                                                <div className="text-xs text-gray-400 font-medium flex items-center gap-1.5 px-2.5 py-1.5 border border-dashed border-gray-300 rounded-lg w-fit">
+                                                <div className="text-xs text-grey-light font-medium flex items-center gap-1.5 px-2.5 py-1.5 border border-dashed border-grey-light rounded-lg w-fit">
                                                     <FileText className="h-3.5 w-3.5" />
                                                     Missing Project Pack
                                                 </div>
@@ -185,15 +214,16 @@ const ProjectPacks = () => {
                                         <td className="px-6 py-4">
                                             <StatusBadge status={project.status} />
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-gray-500">{project.dateDecided ? new Date(project.dateDecided).toLocaleDateString() : 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-grey-mid">{project.dateDecided ? new Date(project.dateDecided).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'N/A'}</td>
                                         <td className="px-6 py-4 text-right">
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     const currentFullUrl = location.pathname + location.search;
-                                                    navigate(`/projects?id=${project.id}&backTo=${encodeURIComponent(currentFullUrl)}`);
+                                                    const basePath = project.projectType === 'preapproved' ? '/pre-approved' : '/projects';
+                                                    navigate(`${basePath}?id=${project.id}&backTo=${encodeURIComponent(currentFullUrl)}`);
                                                 }}
-                                                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                className="p-2 text-grey-dark hover:text-blue-mid hover:bg-blue-ex-light rounded-lg transition-colors"
                                                 title="View Project Details"
                                             >
                                                 <ExternalLink className="h-4 w-4" />
@@ -207,11 +237,11 @@ const ProjectPacks = () => {
                 </div>
 
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-6 shrink-0">
-                        <span className="text-sm text-gray-700">Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredProjects.length)}</span> of <span className="font-medium">{filteredProjects.length}</span> results</span>
+                    <div className="flex items-center justify-between border-t border-grey-ex-light bg-grey-accent px-4 py-3 sm:px-6 shrink-0">
+                        <span className="text-sm text-grey-dark">Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredProjects.length)}</span> of <span className="font-medium">{filteredProjects.length}</span> results</span>
                         <div className="flex gap-2">
-                            <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"><ChevronLeft className="h-4 w-4 mr-1" /> Prev</button>
-                            <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50">Next <ChevronRight className="h-4 w-4 ml-1" /></button>
+                            <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="relative inline-flex items-center rounded-md border border-grey-light bg-white px-3 py-2 text-sm font-medium text-grey-dark hover:bg-grey-ex-light disabled:opacity-50"><ChevronLeft className="h-4 w-4 mr-1" /> Prev</button>
+                            <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="relative inline-flex items-center rounded-md border border-grey-light bg-white px-3 py-2 text-sm font-medium text-grey-dark hover:bg-grey-ex-light disabled:opacity-50">Next <ChevronRight className="h-4 w-4 ml-1" /></button>
                         </div>
                     </div>
                 )}
@@ -223,7 +253,7 @@ const ProjectPacks = () => {
                     className={`absolute inset-0 z-[100] transition-all duration-500 ease-[cubic-bezier(0.2,0,0,1)] ${(isOpen && !isClosing) ? 'translate-x-0' : 'translate-x-full'}`}
                 >
                     <div className="h-full w-full bg-white shadow-2xl overflow-hidden">
-                        <PackWorkspace id={workspaceId} onClose={closeWorkspace} />
+                        <PackWorkspace id={workspaceId} type={searchParams.get('type')} onClose={closeWorkspace} />
                     </div>
                 </div>
             )}

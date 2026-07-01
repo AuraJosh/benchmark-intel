@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db, storage, vertexAI } from '../firebase';
-import { doc, getDoc, updateDoc, arrayRemove } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayRemove, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable, listAll } from 'firebase/storage';
 import { getGenerativeModel } from "@firebase/vertexai";
 import { UploadCloud, File as FileIcon, Eye, Bot, RefreshCcw, Loader2, ArrowLeft, Download, CheckCircle2, Trash2, Copy, Ban, Maximize2, X, Link, ExternalLink, Package } from 'lucide-react';
@@ -13,10 +13,11 @@ import { generateCustomProjectId } from '../utils/projectIds';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
-const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
+const PackWorkspace = ({ id: propId, type: propType, onClose: propOnClose }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const projectId = propId || searchParams.get('id');
+    const projectType = propType || searchParams.get('type');
     const handleClose = propOnClose || (() => navigate(-1));
 
     const [project, setProject] = useState(null);
@@ -46,34 +47,54 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
     useEffect(() => {
         if (!projectId) return;
 
+        let unsubscribe = () => {};
+
         const fetchProject = async () => {
             try {
-                const docRef = doc(db, 'projects', projectId);
-                const snapshot = await getDoc(docRef);
-                if (snapshot.exists()) {
-                    const data = snapshot.data();
-                    const currentCustomId = data.customId;
-                    const calculatedId = (data.address && data.reference) 
-                        ? generateCustomProjectId(data.address, data.reference, data.coordinates || null)
-                        : null;
-                    
-                    // Auto-sync Custom ID if it's missing or was based on incomplete data (containing "UKN" or double hyphens)
-                    if (calculatedId && (!currentCustomId || currentCustomId !== calculatedId)) {
-                        await updateDoc(docRef, { customId: calculatedId });
-                        data.customId = calculatedId;
-                    }
-
-                    setProject({ id: snapshot.id, ...data });
-                    setProjectFiles(data.projectFiles || []);
+                let pType = projectType || 'normal';
+                let docRef = doc(db, pType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId);
+                let snapshot = await getDoc(docRef);
+                
+                if (!snapshot.exists() && !projectType) {
+                    docRef = doc(db, 'pre_approved_projects', projectId);
+                    pType = 'preapproved';
+                    snapshot = await getDoc(docRef);
                 }
+
+                unsubscribe = onSnapshot(docRef, async (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const currentCustomId = data.customId;
+                        const calculatedId = (data.address && data.reference) 
+                            ? generateCustomProjectId(data.address, data.reference, data.coordinates || null)
+                            : null;
+                        
+                        // Auto-sync Custom ID if it's missing or was based on incomplete data
+                        if (calculatedId && (!currentCustomId || currentCustomId !== calculatedId)) {
+                            await updateDoc(docRef, { customId: calculatedId });
+                            data.customId = calculatedId;
+                        }
+
+                        setProject(prev => {
+                            const safeData = { ...data };
+                            // Safeguard against missing address/url which causes UI disappearance
+                            if (!safeData.address && prev?.address) safeData.address = prev.address;
+                            if (!safeData.url && prev?.url) safeData.url = prev.url;
+                            return { ...(prev || {}), ...safeData, id: docSnap.id, projectType: pType };
+                        });
+                        setProjectFiles(data.projectFiles || []);
+                    }
+                    setLoading(false);
+                });
             } catch (error) {
                 console.error("Error fetching workspace project:", error);
-            } finally {
                 setLoading(false);
             }
         };
 
         fetchProject();
+
+        return () => unsubscribe();
     }, [projectId]);
 
     const handleStartWorkspace = async () => {
@@ -134,7 +155,7 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
             const uploadedFiles = data.files || [];
 
             const updatedList = [...projectFiles, ...uploadedFiles];
-            await updateDoc(doc(db, 'projects', projectId), { projectFiles: updatedList });
+            await updateDoc(doc(db, project?.projectType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId), { projectFiles: updatedList });
             setProjectFiles(updatedList);
             
             if (uploadedFiles.length > 0) alert(`${uploadedFiles.length} file(s) processed and secured in the vault.`);
@@ -178,7 +199,7 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
                         fullPath: storagePath
                     };
 
-                    await updateDoc(doc(db, 'projects', projectId), {
+                    await updateDoc(doc(db, project?.projectType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId), {
                         finishedProjectPack: packData,
                         status: 'Pack Created'
                     });
@@ -225,7 +246,7 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
                         }
                     }
 
-                    await updateDoc(doc(db, 'projects', projectId), {
+                    await updateDoc(doc(db, project?.projectType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId), {
                         finishedProjectPack: null,
                         status: 'Pack Required'
                     });
@@ -268,7 +289,7 @@ const PackWorkspace = ({ id: propId, onClose: propOnClose }) => {
                         }
                     }
 
-                    await updateDoc(doc(db, 'projects', projectId), {
+                    await updateDoc(doc(db, project?.projectType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId), {
                         projectFiles: arrayRemove(fileObj)
                     });
                     
@@ -395,7 +416,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
             const responseText = response.text();
 
             // Save to DB
-            await updateDoc(doc(db, 'projects', projectId), { aiDescription: responseText });
+            await updateDoc(doc(db, project?.projectType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId), { aiDescription: responseText });
             setProject(prev => ({ ...prev, aiDescription: responseText }));
             
         } catch (error) {
@@ -452,7 +473,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                 const isMatch = (f.fullPath && f.fullPath === fileObj.fullPath) || (f.url && f.url === fileObj.url);
                 return isMatch ? { ...f, isSuperseded: !f.isSuperseded } : f;
             });
-            await updateDoc(doc(db, 'projects', projectId), { projectFiles: updated });
+            await updateDoc(doc(db, project?.projectType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId), { projectFiles: updated });
             setProjectFiles(updated);
         } catch (error) {
             console.error("Error toggling superseded status:", error);
@@ -637,9 +658,9 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
             floors: aiData.floors || [], // Now a dynamic array
             extras: aiData.extras || '',
             planningStatus: statusStr,
-            homeOwnerName: project.homeownerName || '',
-            homeOwnerPhone: project.homeownerPhone || '',
-            homeOwnerEmail: project.homeownerEmail || '',
+            homeOwnerName: project.homeownerName || project.applicantName || '',
+            homeOwnerPhone: project.homeownerPhone || project.applicantPhone || '',
+            homeOwnerEmail: project.homeownerEmail || project.applicantEmail || '',
             
             imageCover: coverData.png || '',
             coverLink: coverData.link || '',
@@ -730,35 +751,35 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
         }
 
         if (!parsed.projectDescription && !parsed.floors.length && !parsed.extras) {
-            return <div className="text-gray-800 leading-relaxed text-base space-y-4" dangerouslySetInnerHTML={{ __html: text.replace(/\n/g, '<br />') }} />;
+            return <div className="text-grey-dark leading-relaxed text-base space-y-4" dangerouslySetInnerHTML={{ __html: text.replace(/\n/g, '<br />') }} />;
         }
 
         return (
             <div className="space-y-6">
                 {parsed.projectDescription && (
                     <div>
-                        <h4 className="text-sm font-bold text-gray-900 mb-2">Project Description</h4>
-                        <p className="text-gray-700 leading-relaxed text-base">{parsed.projectDescription}</p>
+                        <h4 className="text-sm font-bold text-grey-ex-dark mb-2">Project Description</h4>
+                        <p className="text-grey-dark leading-relaxed text-base">{parsed.projectDescription}</p>
                     </div>
                 )}
                 {parsed.floors.map((floor, idx) => (
                     <div key={idx}>
-                        <h4 className="text-sm font-bold text-gray-900 mb-2">{floor.floorLevel}</h4>
-                        <p className="text-gray-700 leading-relaxed text-base">{floor.floorSummary}</p>
+                        <h4 className="text-sm font-bold text-grey-ex-dark mb-2">{floor.floorLevel}</h4>
+                        <p className="text-grey-dark leading-relaxed text-base">{floor.floorSummary}</p>
                     </div>
                 ))}
                 {parsed.extras && (
                     <div>
-                        <h4 className="text-sm font-bold text-gray-900 mb-2">Extras / External Materials</h4>
-                        <p className="text-gray-700 leading-relaxed text-base">{parsed.extras}</p>
+                        <h4 className="text-sm font-bold text-grey-ex-dark mb-2">Extras / External Materials</h4>
+                        <p className="text-grey-dark leading-relaxed text-base">{parsed.extras}</p>
                     </div>
                 )}
             </div>
         );
     };
 
-    if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>;
-    if (!project) return <div className="p-8 text-center text-red-500 font-bold">Project Workspace Not Found.</div>;
+    if (loading) return <div className="p-8 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-grey-light" /></div>;
+    if (!project) return <div className="p-8 text-center text-red-mid font-bold">Project Workspace Not Found.</div>;
 
     const step1Done = projectFiles.length > 0;
     const step2Done = step1Done && !!project.aiDescription;
@@ -785,27 +806,50 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
         : "Workspace complete!";
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 overflow-hidden relative">
+        <div className="flex flex-col h-full bg-grey-accent overflow-hidden relative">
             {/* Header - Updated to match project/invoice details style */}
-            <header className="px-4 py-4 sm:px-6 sm:py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+            <header className="px-4 py-4 sm:px-6 sm:py-4 border-b border-grey-ex-light bg-grey-accent flex justify-between items-center shrink-0">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3">
-                        <h3 className="text-lg sm:text-xl font-bold text-[#0f172a]">Project Pack Workspace</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-blue-ex-dark">Project Pack Workspace</h3>
                         {project.url && (
                             <a 
                                 href={project.url} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
-                                className="hidden sm:flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold bg-white border border-gray-200 rounded-lg text-[#0f172a] hover:bg-gray-50 shadow-sm transition-colors uppercase tracking-wider"
+                                className="hidden sm:flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold bg-white border border-grey-ex-light rounded-lg text-blue-ex-dark hover:bg-grey-ex-light shadow-sm transition-colors uppercase tracking-wider"
                             >
-                                Portal <ExternalLink className="h-3 w-3 text-gray-400" />
+                                Portal <ExternalLink className="h-3 w-3 text-grey-light" />
                             </a>
                         )}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const basePath = project.projectType === 'preapproved' ? '/pre-approved' : '/projects';
+                                navigate(`${basePath}?id=${project.id}`);
+                            }}
+                            className="hidden sm:flex items-center gap-1.5 px-3 py-1 text-[10px] font-bold bg-white border border-grey-ex-light rounded-lg text-blue-ex-dark hover:bg-grey-ex-light shadow-sm transition-colors uppercase tracking-wider"
+                        >
+                            Details
+                        </button>
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                        <p className="text-xs sm:text-sm text-gray-500 font-medium truncate max-w-[200px] sm:max-w-md">{project.address}</p>
-                        <span className="text-[10px] text-gray-300">•</span>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{project.id}</p>
+                        <p className="text-xs sm:text-sm text-grey-mid font-medium truncate max-w-[200px] sm:max-w-md">{project.address}</p>
+                        <span className="text-[10px] text-grey-light">•</span>
+                        <div className="flex items-center gap-1 group">
+                            <p className="text-[10px] text-grey-light font-bold uppercase tracking-widest">{project.customId || project.id}</p>
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(project.customId || project.id);
+                                    alert("ID copied to clipboard!");
+                                }}
+                                className="p-0.5 text-grey-light opacity-0 group-hover:opacity-100 hover:text-blue-mid rounded transition-all"
+                                title="Copy ID"
+                            >
+                                <Copy className="h-3 w-3" />
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -815,12 +859,12 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                             href={project.url} 
                             target="_blank" 
                             rel="noopener noreferrer" 
-                            className="sm:hidden p-2 text-gray-400 hover:text-gray-600"
+                            className="sm:hidden p-2 text-grey-light hover:text-grey-mid"
                         >
                             <ExternalLink className="h-5 w-5" />
                         </a>
                     )}
-                    <button onClick={handleClose} className="text-gray-400 hover:text-gray-600 focus:outline-none p-2 rounded-full hover:bg-gray-200 transition-colors shrink-0">
+                    <button onClick={handleClose} className="text-grey-dark hover:text-grey-dark focus:outline-none p-2 rounded-full hover:bg-grey-ex-light transition-colors shrink-0">
                         <X className="h-6 w-6" />
                     </button>
                 </div>
@@ -832,19 +876,19 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                     {/* LEFT PANEL: AI Technical Summary (2/3 width) */}
                     <div className="lg:col-span-2 flex flex-col gap-6 order-2 lg:order-1">
                         <div 
-                            className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-[700px] transition-all duration-500"
+                            className="bg-white rounded-xl border border-grey-ex-light shadow-sm overflow-hidden flex flex-col h-[700px] transition-all duration-500"
                             style={getHighlightStyles(step1Done && !step2Done, step2Done)}
                         >
-                            <div className="bg-[#1e1b4b] border-b border-indigo-900 px-5 py-4 flex items-center justify-between">
+                            <div className="bg-purple-ex-dark border-b border-purple-ex-dark px-5 py-4 flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                    <Bot className="h-5 w-5 text-indigo-300" />
+                                    <Bot className="h-5 w-5 text-purple-light" />
                                     <h3 className="text-sm font-bold text-white uppercase tracking-wider">AI Technical Summary</h3>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button 
                                         onClick={handleCopySummary}
                                         disabled={!project.aiDescription}
-                                        className="p-1.5 text-indigo-300 hover:bg-indigo-800 rounded transition-colors disabled:opacity-30"
+                                        className="p-1.5 text-purple-light hover:bg-purple-dark rounded transition-colors disabled:opacity-30"
                                         title="Copy Summary"
                                     >
                                         <Copy className="h-4 w-4" />
@@ -852,29 +896,29 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                                     <button 
                                         onClick={() => setIsSummaryMaximized(true)}
                                         disabled={!project.aiDescription}
-                                        className="p-1.5 text-indigo-300 hover:bg-indigo-800 rounded transition-colors disabled:opacity-30"
+                                        className="p-1.5 text-purple-light hover:bg-purple-dark rounded transition-colors disabled:opacity-30"
                                         title="Full Screen View"
                                     >
                                         <Maximize2 className="h-4 w-4" />
                                     </button>
                                 </div>
                             </div>
-                            <div className="p-8 flex-1 overflow-y-auto bg-gray-50/30 prose prose-slate prose-sm max-w-none">
+                            <div className="p-8 flex-1 overflow-y-auto bg-grey-accent/30 prose prose-slate prose-sm max-w-none">
                                 {project.aiDescription ? (
                                     renderAIDescription()
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-50 space-y-4">
-                                        <div className="p-4 bg-gray-100 rounded-full">
-                                            <Bot className="h-10 w-10 text-gray-400" />
+                                        <div className="p-4 bg-grey-accent rounded-full">
+                                            <Bot className="h-10 w-10 text-grey-light" />
                                         </div>
                                         <div>
-                                            <p className="text-base font-bold text-gray-900">No Intelligence Generated</p>
+                                            <p className="text-base font-bold text-grey-ex-dark">No Intelligence Generated</p>
                                             <p className="text-sm max-w-xs mt-1">Ready to analyze local PDFs and snapshots with Gemini 2.5 Flash.</p>
                                         </div>
                                         <button 
                                             onClick={handleGenerateAI} 
                                             disabled={isGeneratingAI || projectFiles.length === 0}
-                                            className="mt-4 px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 transition-all"
+                                            className="mt-4 px-6 py-2 bg-purple-mid text-white rounded-lg text-sm font-bold shadow-lg shadow-purple-ex-light hover:bg-purple-dark disabled:opacity-50 transition-all"
                                         >
                                             {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> : <Bot className="h-4 w-4 inline mr-2" />}
                                             Generate Initial Summary
@@ -892,23 +936,23 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
 
                         {/* Action Bar (Compact) */}
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => setPreviewModalOpen(true)} disabled={projectFiles.length === 0} className="flex items-center justify-center gap-2 px-3 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50">
-                                <Eye className="h-4 w-4 text-gray-400" /> Preview All
+                            <button onClick={() => setPreviewModalOpen(true)} disabled={projectFiles.length === 0} className="flex items-center justify-center gap-2 px-3 py-2.5 bg-white border border-grey-ex-light text-grey-dark hover:bg-grey-ex-light rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50">
+                                <Eye className="h-4 w-4 text-grey-light" /> Preview All
                             </button>
-                            <button onClick={handleGenerateAI} disabled={isGeneratingAI || projectFiles.length === 0} className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50">
+                            <button onClick={handleGenerateAI} disabled={isGeneratingAI || projectFiles.length === 0} className="flex items-center justify-center gap-2 px-3 py-2.5 bg-purple-ex-light border border-purple-ex-light text-purple-dark hover:bg-purple-ex-light rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50">
                                 {isGeneratingAI ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                                 Refresh Summary
                             </button>
                             <button 
                                 onClick={handleCopyFigmaPayload} 
                                 disabled={!project.aiDescription || isCopyingFigma} 
-                                className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-[#0f172a] text-white hover:bg-black rounded-lg text-xs font-bold shadow-sm transition-all duration-500 disabled:opacity-50"
+                                className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-blue-ex-dark text-white hover:bg-black rounded-lg text-xs font-bold shadow-sm transition-all duration-500 disabled:opacity-50"
                                 style={getHighlightStyles(step2Done && !step3Done, step3Done)}
                             >
                                 {isCopyingFigma ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
                                 {isCopyingFigma ? 'Building Payload...' : 'Copy JSON for Figma'}
                             </button>
-                            <button onClick={handleCleanUpFigmaTemp} disabled={isCleaningFigma} className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50">
+                            <button onClick={handleCleanUpFigmaTemp} disabled={isCleaningFigma} className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-orange-ex-light border border-orange-ex-light text-orange-dark hover:bg-orange-ex-light rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50">
                                 {isCleaningFigma ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 {isCleaningFigma ? 'Cleaning...' : 'Clean Up Temp Previews'}
                             </button>
@@ -916,15 +960,15 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
 
                         {/* Final Project Pack Section */}
                         <div 
-                            className="bg-emerald-50/50 p-4 border border-emerald-100 rounded-xl space-y-3 transition-all duration-500"
+                            className="bg-green-ex-light/50 p-4 border border-green-ex-light rounded-xl space-y-3 transition-all duration-500"
                             style={getHighlightStyles(step3Done && !step4Done, step4Done)}
                         >
-                            <h3 className="text-[10px] font-bold text-emerald-800 uppercase tracking-widest flex items-center justify-between">
+                            <h3 className="text-[10px] font-bold text-green-dark uppercase tracking-widest flex items-center justify-between">
                                 <span className="flex items-center gap-2"><Package className="h-3.5 w-3.5" /> Final Project Pack</span>
                                 {!project.finishedProjectPack && !isUploadingPack && (
                                     <button 
                                         onClick={() => packInputRef.current?.click()}
-                                        className="text-[10px] bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700 transition-colors flex items-center gap-1 shadow-sm"
+                                        className="text-[10px] bg-green-mid text-black px-2 py-1 rounded hover:bg-green-dark transition-colors flex items-center gap-1 shadow-sm"
                                     >
                                         <UploadCloud className="h-2.5 w-2.5" /> Upload
                                     </button>
@@ -940,25 +984,25 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
 
                             {isUploadingPack ? (
                                 <div className="space-y-1.5">
-                                    <div className="flex justify-between text-[10px] text-emerald-700 font-bold uppercase">
+                                    <div className="flex justify-between text-[10px] text-green-dark font-bold uppercase">
                                         <span>Uploading...</span>
                                         <span>{Math.round(uploadProgress)}%</span>
                                     </div>
-                                    <div className="w-full bg-emerald-200 rounded-full h-1">
+                                    <div className="w-full bg-green-ex-light rounded-full h-1">
                                         <div 
-                                            className="bg-emerald-600 h-1 rounded-full transition-all duration-300" 
+                                            className="bg-green-mid h-1 rounded-full transition-all duration-300" 
                                             style={{ width: `${uploadProgress}%` }}
                                         ></div>
                                     </div>
                                 </div>
                             ) : project.finishedProjectPack ? (
-                                <div className="flex items-center justify-between bg-white/50 p-2.5 rounded-lg border border-emerald-100">
+                                <div className="flex items-center justify-between bg-white/50 p-2.5 rounded-lg border border-green-ex-light">
                                     <div className="flex items-center gap-2 overflow-hidden">
-                                        <div className="h-7 w-7 rounded bg-emerald-100 flex items-center justify-center shrink-0">
-                                            <Package className="h-3.5 w-3.5 text-emerald-600" />
+                                        <div className="h-7 w-7 rounded bg-green-ex-light flex items-center justify-center shrink-0">
+                                            <Package className="h-3.5 w-3.5 text-green-mid" />
                                         </div>
                                         <div className="overflow-hidden">
-                                            <p className="text-xs font-bold text-gray-900 truncate" title={project.finishedProjectPack.name}>
+                                            <p className="text-xs font-bold text-grey-ex-dark truncate" title={project.finishedProjectPack.name}>
                                                 {project.finishedProjectPack.name}
                                             </p>
                                         </div>
@@ -968,14 +1012,14 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                                             href={project.finishedProjectPack.url} 
                                             target="_blank" 
                                             rel="noopener noreferrer"
-                                            className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                                            className="p-1.5 text-green-dark hover:bg-green-ex-light rounded transition-colors"
                                             title="Open Pack"
                                         >
                                             <ExternalLink className="h-3.5 w-3.5" />
                                         </a>
                                         <button 
                                             onClick={handleDeleteProjectPack}
-                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                            className="p-1.5 text-red-dark0 hover:bg-red-ex-light rounded transition-colors"
                                             title="Delete Pack"
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
@@ -983,7 +1027,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-[10px] text-emerald-700/60 italic text-center">No final pack uploaded.</p>
+                                <p className="text-[10px] text-green-dark/60 italic text-center">No final pack uploaded.</p>
                             )}
                         </div>
 
@@ -991,16 +1035,16 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                         <div 
                             onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
                             className={`bg-white rounded-xl border border-dashed shadow-sm p-4 flex flex-col items-center justify-center text-center transition-all duration-500 min-h-[100px]
-                            ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+                            ${dragActive ? 'border-blue-mid bg-blue-ex-light' : 'border-grey-light'}`}
                             style={getHighlightStyles(!step1Done, step1Done, dragActive)}
                         >
                             <input type="file" multiple ref={fileInputRef} onChange={(e) => handleUploadFiles(Array.from(e.target.files))} className="hidden" />
                             {isUploading ? (
-                                <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                                <Loader2 className="h-6 w-6 animate-spin text-blue-mid" />
                             ) : (
                                 <>
-                                    <UploadCloud className={`h-6 w-6 mb-2 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
-                                    <button onClick={() => fileInputRef.current.click()} className="text-xs font-bold text-gray-500 hover:text-blue-600">
+                                    <UploadCloud className={`h-6 w-6 mb-2 ${dragActive ? 'text-blue-mid' : 'text-grey-light'}`} />
+                                    <button onClick={() => fileInputRef.current.click()} className="text-xs font-bold text-grey-mid hover:text-blue-mid">
                                         Drop or click to upload
                                     </button>
                                 </>
@@ -1009,29 +1053,29 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
 
                         {/* File Listing (Standard size) */}
                         <div 
-                            className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex-1 flex flex-col transition-all duration-500"
+                            className="bg-white rounded-xl border border-grey-ex-light shadow-sm overflow-hidden flex-1 flex flex-col transition-all duration-500"
                             style={getHighlightStyles(!step1Done, step1Done)}
                         >
-                            <div className="bg-gray-50 border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-                                <h3 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">Project Documents</h3>
-                                <span className="bg-gray-200 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{projectFiles.length}</span>
+                            <div className="bg-grey-accent border-b border-grey-ex-light px-4 py-3 flex items-center justify-between">
+                                <h3 className="text-xs font-bold text-grey-mid uppercase flex items-center gap-2">Project Documents</h3>
+                                <span className="bg-grey-accent text-grey-dark text-[10px] font-bold px-1.5 py-0.5 rounded-full">{projectFiles.length}</span>
                             </div>
                             <div className="divide-y divide-gray-100 overflow-y-auto flex-1 mini-scroll">
                                 {projectFiles.length === 0 ? (
-                                    <p className="text-xs text-gray-400 italic p-6 text-center">No files in vault.</p>
+                                    <p className="text-xs text-grey-light italic p-6 text-center">No files in vault.</p>
                                 ) : (
                                     projectFiles.map((f, i) => (
-                                        <div key={i} className={`flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 group ${f.isSuperseded ? 'bg-gray-50/50' : ''}`}>
+                                        <div key={i} className={`flex items-center justify-between px-4 py-2.5 hover:bg-grey-ex-light group ${f.isSuperseded ? 'bg-grey-accent/50' : ''}`}>
                                             <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="h-7 w-7 rounded bg-gray-100 flex items-center justify-center shrink-0">
-                                                    {f.isSuperseded ? <Ban className="h-3.5 w-3.5 text-gray-400" /> : <FileIcon className="h-3.5 w-3.5 text-gray-400" />}
+                                                <div className="h-7 w-7 rounded bg-grey-accent flex items-center justify-center shrink-0">
+                                                    {f.isSuperseded ? <Ban className="h-3.5 w-3.5 text-grey-light" /> : <FileIcon className="h-3.5 w-3.5 text-grey-light" />}
                                                 </div>
-                                                <span className={`text-xs font-medium truncate ${f.isSuperseded ? 'text-gray-400 line-through italic' : 'text-gray-700'}`} title={f.name || f}>{f.name || 'Unnamed File'}</span>
+                                                <span className={`text-xs font-medium truncate ${f.isSuperseded ? 'text-grey-light line-through italic' : 'text-grey-dark'}`} title={f.name || f}>{f.name || 'Unnamed File'}</span>
                                             </div>
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => handleToggleSuperseded(f)} className={`p-1 rounded ${f.isSuperseded ? 'text-emerald-500' : 'text-amber-500'}`} title={f.isSuperseded ? "Activate" : "Supersede"}><Ban className="h-3.5 w-3.5" /></button>
-                                                <button onClick={() => setPreviewModalOpen(true)} className="p-1 text-blue-600" title="View"><Eye className="h-3.5 w-3.5" /></button>
-                                                <button onClick={() => handleDeleteFile(f)} className="p-1 text-red-500" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                                                <button onClick={() => handleToggleSuperseded(f)} className={`p-1 rounded ${f.isSuperseded ? 'text-green-mid' : 'text-gold-mid'}`} title={f.isSuperseded ? "Activate" : "Supersede"}><Ban className="h-3.5 w-3.5" /></button>
+                                                <button onClick={() => setPreviewModalOpen(true)} className="p-1 text-blue-mid" title="View"><Eye className="h-3.5 w-3.5" /></button>
+                                                <button onClick={() => handleDeleteFile(f)} className="p-1 text-red-mid" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                                             </div>
                                         </div>
                                     ))
@@ -1046,16 +1090,16 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
             {isSummaryMaximized && (
                 <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-12">
                     <div className="bg-white w-full max-w-5xl h-full max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
-                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                        <div className="px-6 py-4 bg-grey-accent border-b border-grey-ex-light flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <Bot className="h-5 w-5 text-indigo-600" />
-                                <h2 className="text-lg font-bold text-gray-900">Technical Build Summary</h2>
+                                <Bot className="h-5 w-5 text-purple-mid" />
+                                <h2 className="text-lg font-bold text-grey-ex-dark">Technical Build Summary</h2>
                             </div>
                             <div className="flex items-center gap-3">
-                                <button onClick={handleCopySummary} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 text-xs font-bold text-gray-600 rounded-lg hover:bg-gray-50">
+                                <button onClick={handleCopySummary} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-grey-ex-light text-xs font-bold text-grey-dark rounded-lg hover:bg-grey-ex-light">
                                     <Copy className="h-4 w-4" /> Copy Text
                                 </button>
-                                <button onClick={() => setIsSummaryMaximized(false)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors">
+                                <button onClick={() => setIsSummaryMaximized(false)} className="p-2 text-grey-dark hover:bg-grey-ex-light rounded-full transition-colors">
                                     <X className="h-6 w-6" />
                                 </button>
                             </div>
@@ -1073,14 +1117,14 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
 
             {/* Subtle Walkthrough Notification */}
             <div className="fixed bottom-6 right-6 z-50 pointer-events-none">
-                <div className="bg-[#1e1b4b] text-white shadow-2xl border border-indigo-900/50 rounded-xl px-4 py-3 flex items-center gap-3 w-max animate-in slide-in-from-bottom-5 duration-500">
+                <div className="bg-purple-ex-dark text-white shadow-2xl border border-purple-ex-dark/50 rounded-xl px-4 py-3 flex items-center gap-3 w-max animate-in slide-in-from-bottom-5 duration-500">
                     {!step4Done ? (
                         <div className="relative flex items-center justify-center w-5 h-5 shrink-0">
-                            <div className="absolute inset-0 rounded-full border-[2px] border-[#FA8500] border-t-transparent animate-[spin_1.5s_linear_infinite]" />
-                            <div className="w-[6px] h-[6px] bg-[#FA8500] rounded-full" />
+                            <div className="absolute inset-0 rounded-full border-[2px] border-orange-accent border-t-transparent animate-[spin_1.5s_linear_infinite]" />
+                            <div className="w-[6px] h-[6px] bg-orange-accent rounded-full" />
                         </div>
                     ) : (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                        <CheckCircle2 className="w-5 h-5 text-green-light shrink-0" />
                     )}
                     <p className="text-sm font-medium">{currentStepText}</p>
                 </div>

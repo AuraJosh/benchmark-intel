@@ -1,4 +1,4 @@
-import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive, Package, UploadCloud, File, Trash2, MessageSquare, Navigation as NavIcon, Star, HelpCircle, Link as LinkIcon, Unlink } from 'lucide-react';
+import { Search, Plus, Loader2, Network, UserPlus, Phone, Mail, Building, Activity, X, MapPin, ExternalLink, ClipboardList, ChevronLeft, ChevronRight, Filter, Receipt, FileText, User, Map as MapIcon, List, Users, Save, CheckCircle2, ArrowUpDown, Archive, Package, UploadCloud, File, Trash2, MessageSquare, Navigation as NavIcon, Star, XCircle, Link as LinkIcon, Unlink } from 'lucide-react';
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { db, storage } from '../firebase';
@@ -196,7 +196,7 @@ const MapDisplay = memo(({ filteredProjects, mapSelectedIds, toggleMapPin, route
             <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {filteredProjects.filter(p => p.coordinates?.lat && p.coordinates?.lng).map(project => {
                 const isSelected = mapSelectedIds.includes(project.id);
-                const isLinked = !!project.linkedPreApprovedId;
+                const isLinked = !!project.linkedProjectId;
                 const icon = L.divIcon({
                     className: '',
                     html: `<div style="
@@ -248,7 +248,7 @@ const MapDisplay = memo(({ filteredProjects, mapSelectedIds, toggleMapPin, route
     );
 });
 
-const Projects = () => {
+const PreApproved = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const location = useLocation();
@@ -282,7 +282,7 @@ const Projects = () => {
     const [relatedCaptures, setRelatedCaptures] = useState([]);
 
     // Auto-detect viewMode from routing
-    const initialViewMode = location.pathname === '/map' ? 'map' : 'list';
+    const initialViewMode = location.pathname === '/pre-approved-map' ? 'map' : 'list';
     const [viewMode, setViewMode] = useState(initialViewMode);
 
     const [syncing, setSyncing] = useState(false);
@@ -352,7 +352,7 @@ const Projects = () => {
         try {
             const batch = writeBatch(db);
             mapSelectedIds.forEach(id => {
-                batch.update(doc(db, 'projects', id), { completed: false });
+                batch.update(doc(db, 'pre_approved_projects', id), { completed: false });
             });
             await batch.commit();
 
@@ -379,11 +379,11 @@ const Projects = () => {
 
 
     useEffect(() => {
-        setViewMode(location.pathname === '/map' ? 'map' : 'list');
+        setViewMode(location.pathname === '/pre-approved-map' ? 'map' : 'list');
     }, [location.pathname]);
 
     useEffect(() => {
-        const unsubscribe = onSnapshot(doc(db, 'system', 'sync_status'), (docSnap) => {
+        const unsubscribe = onSnapshot(doc(db, 'system', 'sync_status_pre_approved'), (docSnap) => {
             if (docSnap.exists()) {
                 setSyncProgress(docSnap.data());
             }
@@ -403,7 +403,7 @@ const Projects = () => {
     }, []);
 
     useEffect(() => {
-        const q = query(collection(db, 'projects'), orderBy('timestamp', 'desc'));
+        const q = query(collection(db, 'pre_approved_projects'), orderBy('timestamp', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const projectData = snapshot.docs.map(doc => ({
                 ...doc.data(),
@@ -420,50 +420,6 @@ const Projects = () => {
     useEffect(() => {
         localStorage.setItem('benchmark_projects_archiveMode', archiveMode);
     }, [archiveMode]);
-
-    // Temporary Backfill hook to update missing applicant details on older projects
-    useEffect(() => {
-        if (searchParams.get('backfill') === 'true' && projects.length > 0) {
-            console.log("Starting backfill process from UI...");
-            const runBackfill = async () => {
-                let count = 0;
-                for (const proj of projects) {
-                    if (proj.linkedPreApprovedId && !proj.applicantName && !proj.homeownerName) {
-                        try {
-                            const paRef = doc(db, 'pre_approved_projects', proj.linkedPreApprovedId);
-                            const paSnap = await getDoc(paRef);
-                            if (paSnap.exists()) {
-                                const paData = paSnap.data();
-                                const updates = {};
-                                if (paData.applicantName) updates.applicantName = paData.applicantName;
-                                if (paData.applicantPhone) updates.applicantPhone = paData.applicantPhone;
-                                if (paData.applicantEmail) updates.applicantEmail = paData.applicantEmail;
-                                
-                                if (paData.homeownerName && !paData.applicantName) updates.homeownerName = paData.homeownerName;
-                                if (paData.homeownerPhone && !paData.applicantPhone) updates.homeownerPhone = paData.homeownerPhone;
-                                if (paData.homeownerEmail && !paData.applicantEmail) updates.homeownerEmail = paData.homeownerEmail;
-
-                                if (Object.keys(updates).length > 0) {
-                                    console.log("Updating", proj.id, updates);
-                                    await updateDoc(doc(db, 'projects', proj.id), updates);
-                                    count++;
-                                }
-                            }
-                        } catch (e) {
-                            console.error("Backfill error for project", proj.id, e);
-                        }
-                    }
-                }
-                alert(`Backfilled ${count} projects successfully!`);
-                setSearchParams((prev) => {
-                    const p = new URLSearchParams(prev);
-                    p.delete('backfill');
-                    return p;
-                });
-            };
-            runBackfill();
-        }
-    }, [searchParams.get('backfill'), projects.length]);
 
     // Sync state with URL params
     useEffect(() => {
@@ -563,7 +519,7 @@ const Projects = () => {
             navigate(backTo);
         } else {
             // Explicitly go back to projects list (Overview)
-            navigate('/projects'); 
+            navigate('/pre-approved'); 
             setSearchParams({});
         }
     };
@@ -689,19 +645,19 @@ const Projects = () => {
             }
             
             const batch = writeBatch(db);
-            const ref = doc(db, 'projects', id);
+            const ref = doc(db, 'pre_approved_projects', id);
             batch.update(ref, updates);
 
-            // If archiving (not currently archived) and has a linked pre-approved project
+            // If archiving (not currently archived) and has a linked project
             if (!currentlyArchived) {
                 const project = projects.find(p => p.id === id);
-                if (project && project.linkedPreApprovedId) {
-                    const linkedRef = doc(db, 'pre_approved_projects', project.linkedPreApprovedId);
+                if (project && project.linkedProjectId) {
+                    const linkedRef = doc(db, 'projects', project.linkedProjectId);
                     const linkedSnap = await getDoc(linkedRef);
                     if (linkedSnap.exists()) {
                         const linkedData = linkedSnap.data();
                         const dateStr = new Date().toLocaleDateString('en-GB');
-                        const noteToAppend = `\n\n[System]: Approved project was archived on ${dateStr}.`;
+                        const noteToAppend = `\n\n[System]: Pre-approved project was archived on ${dateStr}.`;
                         const currentNotes = linkedData.notes || '';
                         batch.update(linkedRef, {
                             isArchived: true,
@@ -722,7 +678,7 @@ const Projects = () => {
         if (!selectedProject) return;
         try {
             const batch = writeBatch(db);
-            const projectRef = doc(db, 'projects', selectedProject.id);
+            const projectRef = doc(db, 'pre_approved_projects', selectedProject.id);
             
             batch.update(projectRef, {
                 notes: editNotes,
@@ -730,9 +686,9 @@ const Projects = () => {
                 letterVersion: editLetterVersion
             });
 
-            if (selectedProject.linkedPreApprovedId) {
-                const paRef = doc(db, 'pre_approved_projects', selectedProject.linkedPreApprovedId);
-                batch.update(paRef, {
+            if (selectedProject.linkedProjectId) {
+                const pRef = doc(db, 'projects', selectedProject.linkedProjectId);
+                batch.update(pRef, {
                     notes: editNotes
                 });
             }
@@ -745,69 +701,17 @@ const Projects = () => {
         }
     };
 
-    const confirmSuggestedLink = async () => {
-        if (!selectedProject || !selectedProject.suggestedPreApprovedId) return;
-        try {
-            const preApprovedId = selectedProject.suggestedPreApprovedId;
-            const projectRef = doc(db, 'projects', selectedProject.id);
-            const paRef = doc(db, 'pre_approved_projects', preApprovedId);
-            
-            const pSnap = await getDoc(projectRef);
-            const paSnap = await getDoc(paRef);
-            let combinedNotes = "";
-            let combinedCollections = [];
-
-            if (pSnap.exists() && paSnap.exists()) {
-                const pData = pSnap.data();
-                const paData = paSnap.data();
-                
-                if (paData.notes) combinedNotes += `[Pre-Approved]:\n${paData.notes}\n\n`;
-                if (pData.notes) combinedNotes += `[Approved]:\n${pData.notes}`;
-                combinedNotes = combinedNotes.trim();
-                
-                combinedCollections = Array.from(new Set([...(pData.collections || []), ...(paData.collections || [])]));
-            }
-
-            const batch = writeBatch(db);
-            batch.update(projectRef, {
-                linkedPreApprovedId: preApprovedId,
-                suggestedPreApprovedId: null,
-                notes: combinedNotes,
-                collections: combinedCollections
-            });
-            batch.update(paRef, {
-                linkedProjectId: selectedProject.id,
-                notes: combinedNotes,
-                collections: combinedCollections
-            });
-            await batch.commit();
-            
-            // Update local state to hide banner and show widget
-            setSelectedProject(prev => ({
-                ...prev,
-                linkedPreApprovedId: preApprovedId,
-                suggestedPreApprovedId: null,
-                notes: combinedNotes,
-                collections: combinedCollections
-            }));
-            setEditNotes(combinedNotes);
-        } catch (err) {
-            console.error("Error confirming link:", err);
-            alert("Failed to confirm link.");
-        }
-    };
-
     const handleManualLink = async () => {
         if (!selectedProject) return;
-        const preApprovedId = window.prompt("Enter the exact ID of the Pre-Approved Project to link:");
-        if (!preApprovedId) return;
+        const projectId = window.prompt("Enter the exact ID of the Final Project to link:");
+        if (!projectId) return;
 
         try {
-            const projectRef = doc(db, 'projects', selectedProject.id);
-            const paRef = doc(db, 'pre_approved_projects', preApprovedId);
+            const paRef = doc(db, 'pre_approved_projects', selectedProject.id);
+            const projectRef = doc(db, 'projects', projectId);
 
-            const pSnap = await getDoc(projectRef);
             const paSnap = await getDoc(paRef);
+            const pSnap = await getDoc(projectRef);
             let combinedNotes = "";
             let combinedCollections = [];
 
@@ -823,15 +727,15 @@ const Projects = () => {
             }
 
             const batch = writeBatch(db);
-            batch.update(projectRef, {
-                linkedPreApprovedId: preApprovedId,
-                suggestedPreApprovedId: null,
+            batch.update(paRef, {
+                linkedProjectId: projectId,
                 notes: combinedNotes,
                 collections: combinedCollections
             });
 
-            batch.update(paRef, {
-                linkedProjectId: selectedProject.id,
+            batch.update(projectRef, {
+                linkedPreApprovedId: selectedProject.id,
+                suggestedPreApprovedId: null,
                 notes: combinedNotes,
                 collections: combinedCollections
             });
@@ -839,8 +743,7 @@ const Projects = () => {
             await batch.commit();
             setSelectedProject(prev => ({
                 ...prev,
-                linkedPreApprovedId: preApprovedId,
-                suggestedPreApprovedId: null,
+                linkedProjectId: projectId,
                 notes: combinedNotes,
                 collections: combinedCollections
             }));
@@ -852,26 +755,26 @@ const Projects = () => {
     };
 
     const handleUnlink = async () => {
-        if (!selectedProject || !selectedProject.linkedPreApprovedId) return;
+        if (!selectedProject || !selectedProject.linkedProjectId) return;
         if (!window.confirm("Are you sure you want to unlink these projects?")) return;
         
         try {
             const batch = writeBatch(db);
-            const projectRef = doc(db, 'projects', selectedProject.id);
-            const paRef = doc(db, 'pre_approved_projects', selectedProject.linkedPreApprovedId);
+            const paRef = doc(db, 'pre_approved_projects', selectedProject.id);
+            const projectRef = doc(db, 'projects', selectedProject.linkedProjectId);
             
-            batch.update(projectRef, {
-                linkedPreApprovedId: null
-            });
-
             batch.update(paRef, {
                 linkedProjectId: null
+            });
+
+            batch.update(projectRef, {
+                linkedPreApprovedId: null
             });
 
             await batch.commit();
             setSelectedProject(prev => ({
                 ...prev,
-                linkedPreApprovedId: null
+                linkedProjectId: null
             }));
         } catch (err) {
             console.error("Error unlinking:", err);
@@ -941,14 +844,14 @@ const Projects = () => {
         if (!selectedProject || !newProjectCollection.trim()) return;
         try {
             const batch = writeBatch(db);
-            const projectRef = doc(db, 'projects', selectedProject.id);
+            const projectRef = doc(db, 'pre_approved_projects', selectedProject.id);
             batch.update(projectRef, {
                 collections: arrayUnion(newProjectCollection.trim())
             });
 
-            if (selectedProject.linkedPreApprovedId) {
-                const paRef = doc(db, 'pre_approved_projects', selectedProject.linkedPreApprovedId);
-                batch.update(paRef, {
+            if (selectedProject.linkedProjectId) {
+                const pRef = doc(db, 'projects', selectedProject.linkedProjectId);
+                batch.update(pRef, {
                     collections: arrayUnion(newProjectCollection.trim())
                 });
             }
@@ -970,13 +873,13 @@ const Projects = () => {
                 updates.collectionId = null;
             }
             
-            const projectRef = doc(db, 'projects', selectedProject.id);
+            const projectRef = doc(db, 'pre_approved_projects', selectedProject.id);
             batch.update(projectRef, updates);
 
-            if (selectedProject.linkedPreApprovedId) {
-                const paRef = doc(db, 'pre_approved_projects', selectedProject.linkedPreApprovedId);
-                const paUpdates = { collections: arrayRemove(collectionToRemove) };
-                batch.update(paRef, paUpdates);
+            if (selectedProject.linkedProjectId) {
+                const pRef = doc(db, 'projects', selectedProject.linkedProjectId);
+                const pUpdates = { collections: arrayRemove(collectionToRemove) };
+                batch.update(pRef, pUpdates);
             }
 
             await batch.commit();
@@ -999,7 +902,7 @@ const Projects = () => {
         try {
             const batch = writeBatch(db);
             selectedRowIds.forEach(id => {
-                const ref = doc(db, 'projects', id);
+                const ref = doc(db, 'pre_approved_projects', id);
                 batch.update(ref, { 
                     collections: arrayUnion(batchCollectionName),
                     collectionId: batchCollectionName
@@ -1024,7 +927,7 @@ const Projects = () => {
         try {
             const batch = writeBatch(db);
             selectedRowIds.forEach(id => {
-                batch.update(doc(db, 'projects', id), { completed: false });
+                batch.update(doc(db, 'pre_approved_projects', id), { completed: false });
             });
             await batch.commit();
 
@@ -1056,7 +959,7 @@ const Projects = () => {
         try {
             const batch = writeBatch(db);
             selectedRowIds.forEach(id => {
-                const ref = doc(db, 'projects', id);
+                const ref = doc(db, 'pre_approved_projects', id);
                 batch.update(ref, { status: status });
             });
             await batch.commit();
@@ -1072,18 +975,18 @@ const Projects = () => {
         try {
             const batch = writeBatch(db);
             for (const id of selectedRowIds) {
-                const ref = doc(db, 'projects', id);
+                const ref = doc(db, 'pre_approved_projects', id);
                 batch.update(ref, { isArchived: archiveState });
 
                 if (archiveState === true) {
                     const project = projects.find(p => p.id === id);
-                    if (project && project.linkedPreApprovedId) {
-                        const linkedRef = doc(db, 'pre_approved_projects', project.linkedPreApprovedId);
+                    if (project && project.linkedProjectId) {
+                        const linkedRef = doc(db, 'projects', project.linkedProjectId);
                         const linkedSnap = await getDoc(linkedRef);
                         if (linkedSnap.exists()) {
                             const linkedData = linkedSnap.data();
                             const dateStr = new Date().toLocaleDateString('en-GB');
-                            const noteToAppend = `\n\n[System]: Approved project was archived on ${dateStr}.`;
+                            const noteToAppend = `\n\n[System]: Pre-approved project was archived on ${dateStr}.`;
                             const currentNotes = linkedData.notes || '';
                             batch.update(linkedRef, {
                                 isArchived: true,
@@ -1113,7 +1016,8 @@ const Projects = () => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        targetWeek: selectedSyncDate === 'current' ? null : selectedSyncDate
+                        targetWeek: selectedSyncDate === 'current' ? null : selectedSyncDate,
+                        projectType: 'Pre-Approved'
                     })
                 });
 
@@ -1174,7 +1078,7 @@ const Projects = () => {
                         fullPath: storagePath
                     };
 
-                    await updateDoc(doc(db, 'projects', activeProject.id), {
+                    await updateDoc(doc(db, 'pre_approved_projects', activeProject.id), {
                         finishedProjectPack: packData,
                         status: 'Pack Created'
                     });
@@ -1221,7 +1125,7 @@ const Projects = () => {
                         }
                     }
 
-                    await updateDoc(doc(db, 'projects', activeProject.id), {
+                    await updateDoc(doc(db, 'pre_approved_projects', activeProject.id), {
                         finishedProjectPack: null,
                         status: 'Pack Required'
                     });
@@ -1239,15 +1143,15 @@ const Projects = () => {
         <div className="w-full relative flex flex-col h-full overflow-hidden">
             <header className="mb-3 md:mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shrink-0">
                 <div className="min-w-0">
-                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-blue-ex-dark truncate">Projects</h1>
+                    <h1 className="text-xl md:text-3xl font-semibold tracking-tight text-blue-ex-dark truncate">Pre-Approved</h1>
                     <p className="mt-0.5 text-xs md:text-sm text-grey-mid hidden md:block">Track and manage planning application leads.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 md:gap-3 shrink-0 w-full md:w-auto">
                     <div className="flex rounded-lg border border-grey-ex-light p-0.5 md:p-1 bg-grey-accent/50">
-                        <button onClick={() => navigate('/projects')} title="List View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-blue-ex-dark shadow-sm' : 'text-grey-mid hover:text-grey-dark'}`}>
+                        <button onClick={() => navigate('/pre-approved')} title="List View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'list' ? 'bg-white text-blue-ex-dark shadow-sm' : 'text-grey-mid hover:text-grey-dark'}`}>
                             <List className="h-3.5 w-3.5" /> <span className="hidden md:inline">List</span>
                         </button>
-                        <button onClick={() => navigate('/map')} title="Map View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'map' ? 'bg-white text-blue-ex-dark shadow-sm' : 'text-grey-mid hover:text-grey-dark'}`}>
+                        <button onClick={() => navigate('/pre-approved-map')} title="Map View" className={`flex items-center gap-1.5 px-2 py-1.5 md:px-3 text-xs font-semibold rounded-md transition-all ${viewMode === 'map' ? 'bg-white text-blue-ex-dark shadow-sm' : 'text-grey-mid hover:text-grey-dark'}`}>
                             <MapIcon className="h-3.5 w-3.5" /> <span className="hidden md:inline">Map</span>
                         </button>
                     </div>
@@ -1448,8 +1352,8 @@ const Projects = () => {
                                                 </td>
                                                 <td className="px-4 py-4 font-medium text-blue-ex-dark">
                                                     <div className="flex items-center gap-1.5">
-                                                        {project.linkedPreApprovedId && <Star className="h-3.5 w-3.5 text-grey-light" strokeWidth={2} title="Linked to Pre-Approved Project" />}
-                                                        {project.suggestedPreApprovedId && <HelpCircle className="h-3.5 w-3.5 text-grey-light" strokeWidth={2} title="Possible Pre-Approved Match" />}
+                                                        {project.linkedProjectId && <Star className="h-3.5 w-3.5 text-grey-light" strokeWidth={2} title="Linked to Final Project" />}
+                                                        {project.status === 'Rejected' && <XCircle className="h-3.5 w-3.5 text-grey-light" strokeWidth={2} title="Rejected Final Project" />}
                                                         <span>{project.address}</span>
                                                     </div>
                                                     <div className="flex flex-wrap gap-1 mt-1.5">
@@ -1568,26 +1472,6 @@ const Projects = () => {
                                         <p className="mt-2 text-base text-grey-ex-dark leading-relaxed">{activeProject.description}</p>
                                     </div>
                                 </div>
-
-                                {activeProject.suggestedPreApprovedId && (
-                                    <div className="bg-gold-ex-light border border-gold-ex-light rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className="mt-0.5 bg-gold-ex-light p-1.5 rounded-lg shrink-0">
-                                                <HelpCircle className="h-5 w-5 text-gold-mid" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-bold text-gold-ex-dark">Suggested Pre-Approved Link</h4>
-                                                <p className="text-xs text-gold-dark mt-0.5">We found a previously rejected Pre-Approved project at a very similar address. Is this a reapplication?</p>
-                                            </div>
-                                        </div>
-                                        <button 
-                                            onClick={confirmSuggestedLink}
-                                            className="whitespace-nowrap px-4 py-2 bg-gold-mid hover:bg-gold-dark text-black text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
-                                        >
-                                            <LinkIcon className="h-3.5 w-3.5" /> Confirm Link
-                                        </button>
-                                    </div>
-                                )}
 
                                 <div className="bg-grey-accent p-6 rounded-xl border border-grey-ex-light">
                                     {/* Action Bar - Now non-absolute to prevent overlapping */}
@@ -1744,7 +1628,7 @@ const Projects = () => {
                                                 View All Logs
                                             </button>
                                             <a
-                                                href={`${window.location.origin}${window.location.pathname}#/prefilled/capture?id=${activeProject.id}&type=project`}
+                                                href={`${window.location.origin}${window.location.pathname}#/prefilled/capture?id=${activeProject.id}&type=preapproved`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-xs bg-blue-mid text-black px-3 py-1.5 rounded-lg hover:bg-blue-dark transition-colors flex items-center gap-1.5 shadow-sm"
@@ -1801,13 +1685,13 @@ const Projects = () => {
                                         <Network className="h-5 w-5 text-blue-mid" /> 
                                         Linked Entities & History
                                     </h3>
-                                    {!activeProject.linkedPreApprovedId && (
+                                    {!activeProject.linkedProjectId && (
                                         <button 
                                             onClick={handleManualLink}
                                             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-white border border-grey-ex-light rounded-lg text-grey-mid hover:text-blue-ex-dark hover:bg-blue-ex-light shadow-sm transition-colors"
-                                            title="Link to a Pre-Approved Project"
+                                            title="Link to a Final Project"
                                         >
-                                            <LinkIcon className="h-3.5 w-3.5" /> Link Pre-Approved
+                                            <LinkIcon className="h-3.5 w-3.5" /> Link Final Project
                                         </button>
                                     )}
                                 </div>
@@ -1815,11 +1699,11 @@ const Projects = () => {
                                 {/* Linked Entities */}
                                 <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {activeProject.linkedPreApprovedId && (
+                                        {activeProject.linkedProjectId && (
                                             <div className="bg-white border border-grey-ex-light rounded-xl overflow-hidden shadow-sm">
                                                 <div className="bg-grey-accent px-4 py-2 border-b border-grey-ex-light flex items-center justify-between">
                                                     <span className="text-xs font-bold text-grey-mid uppercase flex items-center gap-1.5">
-                                                        <Star className="h-3.5 w-3.5" /> Pre-Approved Link
+                                                        <Star className="h-3.5 w-3.5" /> Final Project Link
                                                     </span>
                                                     <button onClick={handleUnlink} title="Unlink Project" className="text-grey-light hover:text-red-mid transition-colors">
                                                         <Unlink className="h-3.5 w-3.5" />
@@ -1827,12 +1711,12 @@ const Projects = () => {
                                                 </div>
                                                 <div className="p-2 space-y-1">
                                                     <button 
-                                                        onClick={() => navigate(`/pre-approved?id=${activeProject.linkedPreApprovedId}`)} 
+                                                        onClick={() => navigate(`/projects?id=${activeProject.linkedProjectId}`)} 
                                                         className="w-full text-left p-2 hover:bg-blue-ex-light rounded-lg group transition-colors flex items-center justify-between"
                                                     >
                                                         <div className="truncate flex-1">
                                                             <div className="text-sm font-semibold text-grey-ex-dark group-hover:text-blue-dark truncate">
-                                                                {activeProject.linkedPreApprovedId}
+                                                                {activeProject.linkedProjectId}
                                                             </div>
                                                             <div className="text-[10px] text-grey-mid uppercase">Click to view details</div>
                                                         </div>
@@ -2108,7 +1992,7 @@ const Projects = () => {
                     className={`absolute inset-0 z-[100] transition-all duration-500 ease-[cubic-bezier(0.2,0,0,1)] ${(isWorkspaceOpen && !isWorkspaceClosing) ? 'translate-x-0' : 'translate-x-full'}`}
                 >
                     <div className="h-full w-full bg-white shadow-2xl overflow-hidden">
-                        <PackWorkspace id={searchParams.get('id')} type="normal" onClose={closeWorkspace} />
+                        <PackWorkspace id={searchParams.get('id')} type="preapproved" onClose={closeWorkspace} />
                     </div>
                 </div>
             )}
@@ -2126,4 +2010,4 @@ const Projects = () => {
     );
 };
 
-export default Projects;
+export default PreApproved;
