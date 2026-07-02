@@ -10,7 +10,7 @@ import {
     getGmailAuthUrl, 
     handleCallback, 
     setupGmailWatch, 
-    handleGmailPush 
+    processGmailPubSub
 } from "./gmailHandler.js";
 
 // --- NEW IMPORTS FOR THE OLD UPLOAD PIPELINE ---
@@ -223,7 +223,10 @@ export const gmailWebhook = onRequest({
     timeoutSeconds: 300,
     memory: "1GiB"
 }, async (req, res) => {
-    await handleGmailPush(req, res);
+    if (req.body && req.body.message && req.body.message.data) {
+        await processGmailPubSub(req.body.message.data);
+    }
+    res.status(200).send("OK");
 });
 
 
@@ -279,10 +282,59 @@ export const uploadToDrive = onRequest({
                 if (!projectId) throw new Error("Missing projectId in request");
 
                 const bucket = admin.storage().bucket();
-                const uploadedFiles = [];
+                
+                // 1. DYNAMIC COLLECTION CHECK (Fixes the split database issue)
+                let collectionName = 'projects'; // Default fallback
+                
+                // Chrome extension might pass URL-encoded portal references (e.g., 23%2F00123%2FFUL)
+                const decodedId = decodeURIComponent(projectId).trim();
+                let actualProjectId = decodedId.replace(/\//g, '-'); // Fallback flat ID to prevent deep nesting
+                
+                let foundRealProject = false;
+                let projectSnap;
 
+                // If it looks like a portal reference, ALWAYS try to find the real auto-generated Firestore document FIRST
+                if (decodedId.includes('/')) {
+                    const projQuery = await admin.firestore().collection('projects').where('reference', '==', decodedId).limit(1).get();
+                    if (!projQuery.empty) {
+                        collectionName = 'projects';
+                        projectSnap = projQuery.docs[0];
+                        actualProjectId = projectSnap.id;
+                        foundRealProject = true;
+                    } else {
+                        const preQuery = await admin.firestore().collection('pre_approved_projects').where('reference', '==', decodedId).limit(1).get();
+                        if (!preQuery.empty) {
+                            collectionName = 'pre_approved_projects';
+                            projectSnap = preQuery.docs[0];
+                            actualProjectId = projectSnap.id;
+                            foundRealProject = true;
+                        }
+                    }
+                }
+                
+                // If not found by reference (or isn't a portal reference), fall back to standard ID lookup
+                if (!foundRealProject) {
+                    let projectDocRef = admin.firestore().collection('projects').doc(actualProjectId);
+                    let preApprovedDocRef = admin.firestore().collection('pre_approved_projects').doc(actualProjectId);
+                    
+                    projectSnap = await projectDocRef.get();
+                    
+                    if (!projectSnap.exists) {
+                        let preApprovedSnap = await preApprovedDocRef.get();
+                        if (preApprovedSnap.exists) {
+                            collectionName = 'pre_approved_projects';
+                            projectSnap = preApprovedSnap;
+                        }
+                    }
+                }
+                
+                console.log(`Routing upload data to the [${collectionName}] collection for ID: ${actualProjectId}`);
+                
+                // 2. Set folder path dynamically based on collection layout
                 const slug = address ? address.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '_').substring(0, 30) : '';
-                let folderPath = address ? `projects/${slug}_${projectId}` : `projects/${projectId}`;
+                let folderPath = address ? `${collectionName}/${slug}_${actualProjectId}` : `${collectionName}/${actualProjectId}`;
+                
+                const uploadedFiles = [];
 
                 for (const up of fileUploads) {
                     const isZip = up.type === 'application/zip' || up.name.toLowerCase().endsWith('.zip');
@@ -321,8 +373,9 @@ export const uploadToDrive = onRequest({
                     if (fs.existsSync(up.file)) fs.unlinkSync(up.file);
                 }
 
+                // 3. SAFE MERGE UPDATE (Prevents wiping metadata fields)
                 if (uploadedFiles.length > 0) {
-                    const docRef = admin.firestore().collection('projects').doc(projectId);
+                    const finalDocRef = admin.firestore().collection(collectionName).doc(actualProjectId);
                     
                     const updateData = {
                         projectFiles: admin.firestore.FieldValue.arrayUnion(...uploadedFiles),
@@ -333,7 +386,8 @@ export const uploadToDrive = onRequest({
                         updateData.documentDescriptions = documentContext;
                     }
 
-                    await docRef.set(updateData, { merge: true });
+                    // Explicit merge guarantees zero data loss on existing fields
+                    await finalDocRef.set(updateData, { merge: true });
                 }
 
                 res.json({ success: true, files: uploadedFiles });
@@ -618,3 +672,130 @@ export const testPushNotification = onRequest({
         res.status(500).send({ success: false, error: err.message });
     }
 });
+
+
+export const fixBrokenProjects = onRequest({ region: 'europe-west2', timeoutSeconds: 300, memory: '1GiB', invoker: 'public', cors: true }, async (req, res) => { try { const db = admin.firestore(); const snap = await db.collection('projects').get(); const brokenIds = []; snap.forEach(doc => { const data = doc.data(); if (!data.address) { brokenIds.push(doc.id); } }); if (brokenIds.length === 0) { return res.status(200).send({ message: 'No broken projects found!' }); } const batch = db.batch(); for (const id of brokenIds) { batch.delete(db.collection('projects').doc(id)); } await batch.commit(); res.status(200).send({ message: 'Deleted broken projects successfully', brokenIds }); } catch (err) { console.error('Failed to fix broken projects', err); res.status(500).send({ error: err.message }); } });
+
+export const debugProjects = onRequest({ region: 'europe-west2', timeoutSeconds: 300, memory: '1GiB', invoker: 'public', cors: true }, async (req, res) => { const db = admin.firestore(); const snap = await db.collection('projects').get(); let docs = []; snap.forEach(doc => docs.push({ id: doc.id, hasAddress: !!doc.data().address, keys: Object.keys(doc.data()) })); res.status(200).send(docs); });
+
+export const queryProjects = onRequest({ region: 'europe-west2', timeoutSeconds: 300, memory: '1GiB', invoker: 'public', cors: true }, async (req, res) => { const db = admin.firestore(); const snap = await db.collection('projects').get(); let docs = []; snap.forEach(doc => { docs.push({ id: doc.id, ...doc.data() }); }); res.status(200).send(docs); });
+
+export const forceRestoreProjects = onRequest({ region: 'europe-west2', timeoutSeconds: 300, memory: '1GiB', invoker: 'public', cors: true }, async (req, res) => {
+    const db = admin.firestore();
+    const projects = [
+  {
+    "id": "TG1VUMSJKMS00",
+    "description": "Erection of single storey extension extending 4.3 metres beyond the rear wall of the original house, with a height to the eaves of 2.6 metres and a total height of 3.9 metres",
+    "address": "86 Wetherby Road Acomb York YO26 5BY",
+    "applicationStatus": "Awaiting decision",
+    "dateValidated": "Wed 03 Jun 2026",
+    "reference": "26/01018/LHE",
+    "timestamp": "2026-07-01T01:07:46.583Z",
+    "notes": "",
+    "dateDecided": null,
+    "dateReceived": "Wed 03 Jun 2026",
+    "applicantName": "",
+    "url": "https://planningaccess.york.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=TG1VUMSJKMS00",
+    "status": "Unsorted"
+  },
+  {
+    "id": "TGBDHFSJKP200",
+    "description": "Single storey rear and front extensions and partial conversion of integral garage to habitable space",
+    "address": "20 Aintree Court York YO24 1EW",
+    "applicationStatus": "Awaiting decision",
+    "dateValidated": "Tue 09 Jun 2026",
+    "reference": "26/01047/FUL",
+    "timestamp": "2026-07-01T01:07:49.307Z",
+    "notes": "",
+    "dateDecided": null,
+    "dateReceived": "Mon 08 Jun 2026",
+    "applicantName": "",
+    "url": "https://planningaccess.york.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=TGBDHFSJKP200",
+    "status": "Unsorted"
+  },
+  {
+    "id": "TFNAT9SJKIB00",
+    "description": "Two storey rear extension, first floor front/side extension and conversion of integral garage to habitable space",
+    "address": "22 Rivelin Way York YO30 4WD",
+    "applicationStatus": "Awaiting decision",
+    "dateValidated": "Wed 27 May 2026",
+    "reference": "26/00963/FUL",
+    "timestamp": "2026-07-01T01:07:52.881Z",
+    "notes": "",
+    "dateDecided": null,
+    "dateReceived": "Tue 26 May 2026",
+    "applicantName": "",
+    "url": "https://planningaccess.york.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=TFNAT9SJKIB00",
+    "status": "Unsorted"
+  },
+  {
+    "id": "TC5G8SSJJKH00",
+    "description": "Hip to gable roof extension with rear dormer, 3no. rooflights to front roofslope, render to side elevation and partial conversion of detached garage to habitable space",
+    "address": "64 Broadway York YO10 4JX",
+    "applicationStatus": "Awaiting decision",
+    "dateValidated": "Wed 08 Apr 2026",
+    "reference": "26/00519/FUL",
+    "timestamp": "2026-07-01T01:07:56.067Z",
+    "notes": "",
+    "dateDecided": null,
+    "dateReceived": "Thu 19 Mar 2026",
+    "applicantName": "",
+    "url": "https://planningaccess.york.gov.uk/online-applications/applicationDetails.do?activeTab=summary&keyVal=TC5G8SSJJKH00",
+    "status": "Unsorted"
+  }
+];
+    const batch = db.batch();
+    for (const p of projects) {
+        batch.set(db.collection('projects').doc(p.id), p, { merge: true });
+    }
+    await batch.commit();
+    res.status(200).send({ success: true, count: projects.length });
+});
+export const runMigration = onRequest({ region: 'europe-west2', timeoutSeconds: 540, memory: '1GiB', invoker: 'public', cors: true }, async (req, res) => {
+    try {
+        const db = admin.firestore();
+        const logs = [];
+        let mergedCount = 0;
+
+        const mergeDocs = async (collectionName) => {
+            const snap = await db.collection(collectionName).get();
+            for (const doc of snap.docs) {
+                const data = doc.data();
+                if (!data.reference || !data.reference.includes('/')) continue;
+                
+                const ghostRef1 = db.collection('projects').doc(data.reference);
+                const ghostSnap1 = await ghostRef1.get();
+                if (ghostSnap1.exists) {
+                    const ghostData = ghostSnap1.data();
+                    if (ghostData.projectFiles && ghostData.projectFiles.length > 0) {
+                        await doc.ref.set({ projectFiles: admin.firestore.FieldValue.arrayUnion(...ghostData.projectFiles) }, { merge: true });
+                        await ghostRef1.delete();
+                        logs.push('Merged ' + data.reference + ' into ' + doc.id);
+                        mergedCount++;
+                    } else { await ghostRef1.delete(); }
+                }
+
+                const ghostRef2 = db.collection('pre_approved_projects').doc(data.reference);
+                const ghostSnap2 = await ghostRef2.get();
+                if (ghostSnap2.exists) {
+                    const ghostData = ghostSnap2.data();
+                    if (ghostData.projectFiles && ghostData.projectFiles.length > 0) {
+                        await doc.ref.set({ projectFiles: admin.firestore.FieldValue.arrayUnion(...ghostData.projectFiles) }, { merge: true });
+                        await ghostRef2.delete();
+                        logs.push('Merged ' + data.reference + ' into ' + doc.id);
+                        mergedCount++;
+                    } else { await ghostRef2.delete(); }
+                }
+            }
+        };
+
+        await mergeDocs('projects');
+        await mergeDocs('pre_approved_projects');
+
+        res.status(200).send({ message: 'Migration complete', mergedCount, logs });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: err.message });
+    }
+});
+

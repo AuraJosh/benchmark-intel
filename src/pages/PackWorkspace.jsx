@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db, storage, vertexAI } from '../firebase';
-import { doc, getDoc, updateDoc, arrayRemove, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayRemove, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable, listAll } from 'firebase/storage';
 import { getGenerativeModel } from "@firebase/vertexai";
 import { UploadCloud, File as FileIcon, Eye, Bot, RefreshCcw, Loader2, ArrowLeft, Download, CheckCircle2, Trash2, Copy, Ban, Maximize2, X, Link, ExternalLink, Package } from 'lucide-react';
@@ -52,11 +52,41 @@ const PackWorkspace = ({ id: propId, type: propType, onClose: propOnClose }) => 
         const fetchProject = async () => {
             try {
                 let pType = projectType || 'normal';
-                let docRef = doc(db, pType === 'preapproved' ? 'pre_approved_projects' : 'projects', projectId);
-                let snapshot = await getDoc(docRef);
+                let actualId = projectId;
+                let docRef;
+                let snapshot;
+                let foundReal = false;
+                const decodedId = decodeURIComponent(projectId);
+
+                if (decodedId.includes('/')) {
+                    // Try projects first
+                    let q = query(collection(db, 'projects'), where('reference', '==', decodedId));
+                    let querySnap = await getDocs(q);
+                    if (!querySnap.empty) {
+                        actualId = querySnap.docs[0].id;
+                        pType = 'normal';
+                        foundReal = true;
+                    } else {
+                        // Try pre-approved
+                        q = query(collection(db, 'pre_approved_projects'), where('reference', '==', decodedId));
+                        querySnap = await getDocs(q);
+                        if (!querySnap.empty) {
+                            actualId = querySnap.docs[0].id;
+                            pType = 'preapproved';
+                            foundReal = true;
+                        }
+                    }
+                }
+
+                if (!foundReal) {
+                    actualId = decodedId.replace(/\//g, '-');
+                }
+
+                docRef = doc(db, pType === 'preapproved' ? 'pre_approved_projects' : 'projects', actualId);
+                snapshot = await getDoc(docRef);
                 
-                if (!snapshot.exists() && !projectType) {
-                    docRef = doc(db, 'pre_approved_projects', projectId);
+                if (!snapshot.exists() && !projectType && !foundReal) {
+                    docRef = doc(db, 'pre_approved_projects', actualId);
                     pType = 'preapproved';
                     snapshot = await getDoc(docRef);
                 }
