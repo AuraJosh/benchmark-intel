@@ -1018,7 +1018,7 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                                             <ExternalLink className="h-3.5 w-3.5" />
                                         </a>
                                         <button 
-                                            onClick={handleDeleteProjectPack}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteProjectPack(e); }}
                                             className="p-1.5 text-red-dark0 hover:bg-red-ex-light rounded transition-colors"
                                             title="Delete Pack"
                                         >
@@ -1074,8 +1074,8 @@ IMPORTANT: You have been provided with BOTH the raw PDFs and high-resolution vis
                                             </div>
                                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => handleToggleSuperseded(f)} className={`p-1 rounded ${f.isSuperseded ? 'text-green-mid' : 'text-gold-mid'}`} title={f.isSuperseded ? "Activate" : "Supersede"}><Ban className="h-3.5 w-3.5" /></button>
-                                                <button onClick={() => setPreviewModalOpen(true)} className="p-1 text-blue-mid" title="View"><Eye className="h-3.5 w-3.5" /></button>
-                                                <button onClick={() => handleDeleteFile(f)} className="p-1 text-red-mid" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
+                                                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewModalOpen(true); }} className="p-1 text-blue-mid" title="View"><Eye className="h-3.5 w-3.5" /></button>
+                                                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteFile(f); }} className="p-1 text-red-mid" title="Delete"><Trash2 className="h-3.5 w-3.5" /></button>
                                             </div>
                                         </div>
                                     ))

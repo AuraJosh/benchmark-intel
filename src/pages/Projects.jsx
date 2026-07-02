@@ -1632,8 +1632,8 @@ const Projects = () => {
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-y-6 gap-x-4">
                                         <div className="col-span-2 bg-grey-accent p-3 rounded-lg border border-grey-ex-light">
                                             <h3 className="text-[10px] font-bold text-grey-light uppercase tracking-widest">Applicant</h3>
-                                            <p className="mt-1 text-sm font-bold text-grey-ex-dark truncate" title={activeProject.applicantName || 'N/A'}>
-                                                {activeProject.applicantName || 'N/A'}
+                                            <p className="mt-1 text-sm font-bold text-grey-ex-dark truncate" title={activeProject.applicantName || activeProject.homeownerName || 'Unknown Applicant'}>
+                                                {activeProject.applicantName || activeProject.homeownerName || 'Unknown Applicant'}
                                             </p>
                                         </div>
                                         <div className="bg-grey-accent p-3 rounded-lg border border-grey-ex-light">
